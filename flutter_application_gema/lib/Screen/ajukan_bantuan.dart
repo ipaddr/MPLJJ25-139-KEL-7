@@ -1,43 +1,139 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 
-// Import halaman-halaman lain yang akan dihubungkan melalui BottomNavigationBar
-// Sesuaikan path import ini dengan lokasi file Anda di proyek.
-// Contoh:
-// import 'package:flutter_application_gema/pages/home_screen.dart';
-// import 'package:flutter_application_gema/pages/program_saya_screen.dart';
-// import 'package:flutter_application_gema/pages/bantuan_aplikasi_screen.dart';
-// import 'package:flutter_application_gema/pages/ajukan_bantuan_screen.dart'; // Import diri sendiri jika ingin navigasi ke diri sendiri (opsional)
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GEMA Ajukan Bantuan',
-      debugShowCheckedModeBanner: false, // Menghilangkan debug banner
-      theme: ThemeData(
-        primarySwatch: Colors.grey, // Tema warna utama
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'Roboto', // Contoh font
-      ),
-      // Di sini Anda biasanya akan mendefinisikan semua rute yang ada di aplikasi Anda
-      // Saya tidak akan mengulang semua rute di sini karena ini adalah file halaman,
-      // tapi pastikan Anda telah mendefinisikannya di `main.dart`
-      home:
-          const AjukanBantuanScreen(), // AjukanBantuanScreen sebagai halaman awal untuk contoh ini
-    );
-  }
-}
-
-class AjukanBantuanScreen extends StatelessWidget {
+// Mengubah AjukanBantuanScreen menjadi StatefulWidget
+class AjukanBantuanScreen extends StatefulWidget {
   const AjukanBantuanScreen({super.key});
 
+  @override
+  State<AjukanBantuanScreen> createState() => _AjukanBantuanScreenState();
+}
+
+class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
   final String _location = 'Indonesia, Sumatera Barat, Padang'; // Lokasi statis
+
+  // Controllers untuk input form pengajuan
+  final TextEditingController _namaProgramController = TextEditingController();
+  final TextEditingController _deskripsiProgramController =
+      TextEditingController();
+  final TextEditingController _kategoriUsahaController =
+      TextEditingController();
+
+  // Controllers untuk menampilkan Nama Akun dan NIK di header
+  final TextEditingController _namaAkunHeaderController =
+      TextEditingController();
+  final TextEditingController _nikHeaderController = TextEditingController();
+
+  // Instance Firebase Auth dan Firestore
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData(); // Memanggil fungsi untuk mengambil data pengguna untuk header
+  }
+
+  // Fungsi untuk mengambil data pengguna dari Firestore untuk header
+  void _fetchUserData() {
+    User? currentUser = _auth.currentUser;
+
+    if (currentUser != null) {
+      _firestore.collection('users').doc(currentUser.uid).snapshots().listen((
+        userSnapshot,
+      ) {
+        if (userSnapshot.exists && userSnapshot.data() != null) {
+          final userData = userSnapshot.data()!;
+          setState(() {
+            _namaAkunHeaderController.text =
+                userData['fullName'] ?? 'Nama Tidak Tersedia';
+            _nikHeaderController.text = userData['nik'] ?? 'NIK Tidak Tersedia';
+          });
+        }
+      });
+    } else {
+      setState(() {
+        _namaAkunHeaderController.text = 'Tidak Login';
+        _nikHeaderController.text = 'Tidak Login';
+      });
+    }
+  }
+
+  // Fungsi untuk menyimpan pengajuan program ke Firestore
+  Future<void> _submitProgram() async {
+    User? currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Anda harus login untuk mengajukan bantuan.'),
+        ),
+      );
+      return;
+    }
+
+    // Pastikan bidang usaha sudah ada (myBusiness document) sebelum mengajukan program
+    final businessDocRef = _firestore
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('usaha')
+        .doc('myBusiness');
+    final businessDoc = await businessDocRef.get();
+
+    if (!businessDoc.exists) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Anda harus mengisi data usaha terlebih dahulu di "Program Saya".',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_namaProgramController.text.isEmpty ||
+        _deskripsiProgramController.text.isEmpty ||
+        _kategoriUsahaController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap lengkapi semua bidang program.')),
+      );
+      return;
+    }
+
+    try {
+      // Menambahkan dokumen baru ke sub-koleksi 'programAjuan'
+      await businessDocRef.collection('programAjuan').add({
+        'namaProgram': _namaProgramController.text.trim(),
+        'deskripsiProgram': _deskripsiProgramController.text.trim(),
+        'kategoriUsaha': _kategoriUsahaController.text.trim(),
+        'status': 'Diajukan', // Status awal pengajuan
+        'tanggalPengajuan': FieldValue.serverTimestamp(), // Timestamp pengajuan
+        'userId': currentUser.uid, // Simpan UID pengguna
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pengajuan program berhasil dikirim!')),
+      );
+      // Bersihkan form setelah pengajuan berhasil
+      _namaProgramController.clear();
+      _deskripsiProgramController.clear();
+      _kategoriUsahaController.clear();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengajukan program: ${e.toString()}')),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _namaProgramController.dispose();
+    _deskripsiProgramController.dispose();
+    _kategoriUsahaController.dispose();
+    _namaAkunHeaderController.dispose();
+    _nikHeaderController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +174,7 @@ class AjukanBantuanScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
                   const SizedBox(height: 10),
-                  _buildInputField(),
+                  _buildInputField(_namaProgramController),
                   const SizedBox(height: 25), // Spasi antar input
                   // Deskripsi Program
                   const Text(
@@ -86,7 +182,9 @@ class AjukanBantuanScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
                   const SizedBox(height: 10),
-                  _buildMultiLineInputField(), // Input multi-baris
+                  _buildMultiLineInputField(
+                    _deskripsiProgramController,
+                  ), // Input multi-baris
                   const SizedBox(height: 25),
 
                   // Kategori Usaha
@@ -95,18 +193,14 @@ class AjukanBantuanScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
                   const SizedBox(height: 10),
-                  _buildInputField(),
+                  _buildInputField(_kategoriUsahaController),
                   const SizedBox(height: 30), // Spasi sebelum tombol
                   // Tombol AJUKAN
                   SizedBox(
                     width: double.infinity, // Lebar tombol penuh
                     height: 50, // Tinggi tombol
                     child: ElevatedButton(
-                      onPressed: () {
-                        print('AJUKAN button pressed');
-                        // Logika untuk mengirim pengajuan
-                        // Anda bisa menambahkan konfirmasi atau navigasi ke halaman lain setelah pengajuan
-                      },
+                      onPressed: _submitProgram, // Panggil fungsi pengajuan
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(
                           0xFF2C4372,
@@ -182,9 +276,10 @@ class AjukanBantuanScreen extends StatelessWidget {
                           border: Border.all(color: Colors.black, width: 0.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: const TextField(
+                        child: TextField(
+                          controller: _namaAkunHeaderController,
                           readOnly: true,
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 5,
@@ -192,7 +287,10 @@ class AjukanBantuanScreen extends StatelessWidget {
                             ),
                             border: InputBorder.none,
                           ),
-                          style: TextStyle(fontSize: 12, color: Colors.black),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -207,9 +305,10 @@ class AjukanBantuanScreen extends StatelessWidget {
                           border: Border.all(color: Colors.black, width: 0.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: const TextField(
+                        child: TextField(
+                          controller: _nikHeaderController,
                           readOnly: true,
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 5,
@@ -217,7 +316,10 @@ class AjukanBantuanScreen extends StatelessWidget {
                             ),
                             border: InputBorder.none,
                           ),
-                          style: TextStyle(fontSize: 12, color: Colors.black),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                     ],
@@ -248,43 +350,45 @@ class AjukanBantuanScreen extends StatelessWidget {
   }
 
   // Widget untuk input field standar (satu baris)
-  Widget _buildInputField() {
+  Widget _buildInputField(TextEditingController controller) {
     return Container(
       height: 40, // Tinggi fixed untuk input field
       decoration: BoxDecoration(
         color: Colors.grey[300], // Background abu-abu terang
         borderRadius: BorderRadius.circular(8), // Sudut membulat
       ),
-      child: const TextField(
-        decoration: InputDecoration(
+      child: TextField(
+        controller: controller, // Menghubungkan controller
+        decoration: const InputDecoration(
           border: InputBorder.none, // Tanpa border bawaan TextField
           contentPadding: EdgeInsets.symmetric(
             horizontal: 15,
             vertical: 10,
           ), // Padding konten
         ),
-        style: TextStyle(color: Colors.black),
+        style: const TextStyle(color: Colors.black),
       ),
     );
   }
 
   // Widget untuk input field multi-baris (Deskripsi Program)
-  Widget _buildMultiLineInputField() {
+  Widget _buildMultiLineInputField(TextEditingController controller) {
     return Container(
       height: 120, // Tinggi fixed untuk multi-line input
       decoration: BoxDecoration(
         color: Colors.grey[300], // Background abu-abu terang
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const TextField(
+      child: TextField(
+        controller: controller, // Menghubungkan controller
         maxLines: null, // Memungkinkan input multi-baris
         keyboardType:
             TextInputType.multiline, // Menggunakan keyboard multi-baris
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
         ),
-        style: TextStyle(color: Colors.black),
+        style: const TextStyle(color: Colors.black),
       ),
     );
   }
@@ -299,14 +403,14 @@ class AjukanBantuanScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: <Widget>[
             IconButton(
-              // Ikon Home (Beranda) - Aktif karena sedang di halaman ini
+              // Ikon Home (Beranda)
               icon: const Icon(
                 Icons.grid_view,
-                color: Colors.green,
+                color: Color.fromARGB(255, 249, 249, 249),
                 size: 30,
-              ), // Warna hijau untuk indikator aktif
+              ), // Warna putih
               onPressed: () {
-                print('Home Grid pressed (Already on Home)');
+                print('Home Grid pressed');
                 Navigator.pushReplacementNamed(context, '/beranda');
               },
             ),
@@ -318,10 +422,10 @@ class AjukanBantuanScreen extends StatelessWidget {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 30),
+              // Ikon Ajukan Bantuan (Aktif)
+              icon: const Icon(Icons.send, color: Colors.green, size: 30),
               onPressed: () {
-                print('Send pressed');
-                // Navigasi ke halaman Ajukan Bantuan
+                print('Send pressed (Already on Ajukan Bantuan)');
                 Navigator.pushReplacementNamed(context, '/ajukanBantuan');
               },
             ),
@@ -333,19 +437,13 @@ class AjukanBantuanScreen extends StatelessWidget {
               ),
               onPressed: () {
                 print('Archive pressed');
-                // Navigasi ke halaman Program Saya (Bantuan Aplikasi)
                 Navigator.pushReplacementNamed(context, '/aboutAplikasi');
               },
             ),
             IconButton(
-              icon: const Icon(
-                Icons.logout,
-                color: Colors.white,
-                size: 30,
-              ), // Mengubah ikon dari logout ke bantuan
+              icon: const Icon(Icons.logout, color: Colors.white, size: 30),
               onPressed: () {
                 print('Help pressed');
-                // Navigasi ke halaman Bantuan Aplikasi
                 Navigator.pushReplacementNamed(context, '/');
               },
             ),

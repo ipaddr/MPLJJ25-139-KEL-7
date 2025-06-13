@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1063791437321",
+    "project_id": "flutter-application-gema",
+    "storage_bucket": "flutter-application-gema.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1063791437321:android:a978fa0cf8a29694c63ad8",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_gema"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSXdQ0cF-Vuv0W_b3JlxTOm-GFsEkHhcw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

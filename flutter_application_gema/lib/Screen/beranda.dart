@@ -1,42 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 
-// Import halaman-halaman lain yang akan dihubungkan melalui BottomNavigationBar
-// Sesuaikan path import ini dengan lokasi file Anda di proyek.
-// Contoh:
-// import 'package:flutter_application_gema/pages/login_page.dart'; // Jika ingin ada tombol logout ke login
-// import 'package:flutter_application_gema/pages/program_saya_screen.dart';
-// import 'package:flutter_application_gema/pages/ajukan_bantuan_screen.dart';
-// import 'package:flutter_application_gema/pages/bantuan_aplikasi_screen.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GEMA Beranda',
-      debugShowCheckedModeBanner: false, // Menghilangkan debug banner
-      theme: ThemeData(
-        primarySwatch: Colors.grey, // Menggunakan abu-abu sebagai warna utama
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'Roboto', // Contoh font, bisa disesuaikan
-      ),
-      // Anda harus mendefinisikan rute di sini atau di file `main.dart` utama aplikasi Anda
-      // Jika ini adalah file terpisah (misal home_screen.dart), maka rute harus ada di main.dart
-      home: const Beranda(), // Untuk tujuan demo, ini adalah halaman awal
-    );
-  }
-}
-
-class Beranda extends StatelessWidget {
+// Mengubah Beranda menjadi StatefulWidget untuk menangani data dinamis dari Firestore
+class Beranda extends StatefulWidget {
   const Beranda({super.key});
 
+  @override
+  State<Beranda> createState() => _BerandaState();
+}
+
+class _BerandaState extends State<Beranda> {
   // Lokasi statis sesuai gambar
   final String _location = 'Indonesia, Sumatera Barat, Padang';
+
+  // Controllers untuk menampilkan Nama Akun dan NIK
+  final TextEditingController _namaAkunController = TextEditingController();
+  final TextEditingController _nikController = TextEditingController();
+
+  // Instance Firebase Auth dan Firestore
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData(); // Memanggil fungsi untuk mengambil data pengguna
+  }
+
+  // Fungsi untuk mengambil data pengguna dari Firestore
+  void _fetchUserData() {
+    User? currentUser =
+        _auth.currentUser; // Mendapatkan pengguna yang sedang login
+
+    if (currentUser != null) {
+      _firestore.collection('users').doc(currentUser.uid).snapshots().listen((
+        snapshot,
+      ) {
+        if (snapshot.exists && snapshot.data() != null) {
+          final userData = snapshot.data()!;
+          setState(() {
+            // Memperbarui controller dengan data dari Firestore
+            _namaAkunController.text =
+                userData['fullName'] ?? 'Nama Tidak Tersedia';
+            _nikController.text = userData['nik'] ?? 'NIK Tidak Tersedia';
+          });
+        } else {
+          // Handle jika dokumen pengguna tidak ada
+          setState(() {
+            _namaAkunController.text = 'Pengguna Tidak Ditemukan';
+            _nikController.text = 'NIK Tidak Ditemukan';
+          });
+        }
+      });
+    } else {
+      // Handle jika tidak ada pengguna yang login
+      setState(() {
+        _namaAkunController.text = 'Tidak Login';
+        _nikController.text = 'Tidak Login';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _namaAkunController.dispose();
+    _nikController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +96,41 @@ class Beranda extends StatelessWidget {
             ), // Margin agar tidak sampai pinggir layar
           ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(
-                16.0,
-              ), // Padding di sekeliling konten
-              child: Column(
-                children: [
-                  // Daftar Berita (News Cards)
-                  _buildNewsCard(),
-                  const SizedBox(height: 15),
-                  _buildNewsCard(),
-                  const SizedBox(height: 15),
-                  _buildNewsCard(),
-                  const SizedBox(height: 15),
-                  // Tambahkan lebih banyak _buildNewsCard jika diperlukan
-                ],
-              ),
+            child: StreamBuilder<QuerySnapshot>(
+              // Mengambil data dari koleksi 'berita' di Firestore
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('berita')
+                      .orderBy('tanggal', descending: true)
+                      .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text('Tidak ada berita tersedia.'),
+                  );
+                } else {
+                  // Mengambil daftar dokumen berita
+                  final newsDocs = snapshot.data!.docs;
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(
+                      16.0,
+                    ), // Padding di sekeliling konten
+                    child: Column(
+                      children: [
+                        // Daftar Berita (News Cards) dibuat secara dinamis
+                        ...newsDocs
+                            .map((doc) => _buildNewsCard(context, doc))
+                            .toList(),
+                      ],
+                    ),
+                  );
+                }
+              },
             ),
           ),
           // Garis pembatas horizontal tipis di atas bottom navigation
@@ -136,9 +186,12 @@ class Beranda extends StatelessWidget {
                           border: Border.all(color: Colors.black, width: 0.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: const TextField(
-                          readOnly: true,
-                          decoration: InputDecoration(
+                        child: TextField(
+                          // Menggunakan TextField
+                          controller:
+                              _namaAkunController, // Menghubungkan controller
+                          readOnly: true, // Read-only
+                          decoration: const InputDecoration(
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 5,
@@ -146,7 +199,10 @@ class Beranda extends StatelessWidget {
                             ),
                             border: InputBorder.none,
                           ),
-                          style: TextStyle(fontSize: 12, color: Colors.black),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 2), // Spasi kecil antara input
@@ -161,9 +217,12 @@ class Beranda extends StatelessWidget {
                           border: Border.all(color: Colors.black, width: 0.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: const TextField(
-                          readOnly: true,
-                          decoration: InputDecoration(
+                        child: TextField(
+                          // Menggunakan TextField
+                          controller:
+                              _nikController, // Menghubungkan controller
+                          readOnly: true, // Read-only
+                          decoration: const InputDecoration(
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 5,
@@ -171,7 +230,10 @@ class Beranda extends StatelessWidget {
                             ),
                             border: InputBorder.none,
                           ),
-                          style: TextStyle(fontSize: 12, color: Colors.black),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                     ],
@@ -203,77 +265,108 @@ class Beranda extends StatelessWidget {
     );
   }
 
-  Widget _buildNewsCard() {
-    return Container(
-      padding: const EdgeInsets.all(10.0),
-      decoration: BoxDecoration(
-        color: Colors.grey[200], // Warna background abu-abu terang
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black, width: 0.5),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Placeholder Gambar
-          Container(
-            width: 100,
-            height: 100,
-            color: Colors.black, // Warna hitam untuk placeholder gambar
-            child: const Icon(
-              Icons.close,
-              color: Colors.white,
-              size: 50,
-            ), // Ikon 'X'
+  // Mengubah _buildNewsCard untuk menerima data berita
+  Widget _buildNewsCard(BuildContext context, DocumentSnapshot newsDoc) {
+    // Mengambil data dari dokumen
+    Map<String, dynamic> data = newsDoc.data() as Map<String, dynamic>;
+    String judul = data['judul'] ?? 'Judul Berita';
+    String kontenSingkat =
+        (data['konten'] as String? ?? 'Konten berita tidak tersedia.')
+            .substring(
+              0,
+              (data['konten'] as String? ?? '').length > 100
+                  ? 100
+                  : (data['konten'] as String? ?? '').length,
+            ) +
+        '...'; // Ambil 100 karakter pertama
+    String beritaId = newsDoc.id; // Mendapatkan ID dokumen berita
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: Colors.grey[200], // Warna background abu-abu terang
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.black, width: 0.5),
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Placeholder Teks Berita (Garis-garis hitam)
-                Container(
-                  height: 10,
-                  color: Colors.black,
-                  width: double.infinity,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Placeholder Gambar (Anda bisa menggantinya dengan Image.network jika ada URL gambar)
+              Container(
+                width: 100,
+                height: 100,
+                color: Colors.black, // Warna hitam untuk placeholder gambar
+                child: const Icon(
+                  Icons.article, // Mengubah ikon dari close menjadi article
+                  color: Colors.white,
+                  size: 50,
                 ),
-                const SizedBox(height: 5),
-                Container(
-                  height: 10,
-                  color: Colors.black,
-                  width: double.infinity,
-                ),
-                const SizedBox(height: 5),
-                Container(
-                  height: 10,
-                  color: Colors.black,
-                  width: 80, // Baris terakhir lebih pendek
-                ),
-                const SizedBox(height: 15),
-                SizedBox(
-                  height: 30, // Tinggi tombol READ NEWS
-                  child: ElevatedButton(
-                    onPressed: () {
-                      print('Read News button pressed');
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600], // Warna abu-abu gelap
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      judul,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                      elevation: 2,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: const Text(
-                      'READ NEWS',
-                      style: TextStyle(fontSize: 12, color: Colors.white),
+                    const SizedBox(height: 5),
+                    Text(
+                      kontenSingkat,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                    const SizedBox(height: 15),
+                    SizedBox(
+                      height: 30, // Tinggi tombol READ NEWS
+                      child: ElevatedButton(
+                        onPressed: () {
+                          print(
+                            'Navigating to BeritaScreen with ID: $beritaId',
+                          );
+                          // Navigasi ke BeritaScreen dan lewati ID berita
+                          Navigator.pushNamed(
+                            context,
+                            '/beritaDetail',
+                            arguments: beritaId,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Colors.grey[600], // Warna abu-abu gelap
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: const Text(
+                          'READ NEWS',
+                          style: TextStyle(fontSize: 12, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 15), // Spasi antar kartu berita
+      ],
     );
   }
 

@@ -1,69 +1,33 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-// Import halaman RegisterScreen
-import 'package:flutter_application_gema/Screen/register_user.dart';
-// Import AuthService
-import 'package:flutter_application_gema/service/auth_service.dart'; // Sesuaikan path ini jika berbeda
+import 'package:flutter_application_gema/service/auth_service.dart'; // Import AuthService
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 
-// Pastikan Anda telah mengimpor halaman Beranda (HomeScreen)
-// Jika HomeScreen berada di file terpisah, misalnya:
-// import 'package:flutter_application_gema/pages/home_screen.dart';
-// Sesuaikan path import sesuai lokasi file Anda.
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+// Kelas RegisterScreen
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GEMA ID Login',
-      debugShowCheckedModeBanner:
-          false, // Menghilangkan debug banner di pojok kanan atas
-      theme: ThemeData(
-        primarySwatch: Colors.green, // Tema warna utama, bisa disesuaikan
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily:
-            'Roboto', // Menggunakan font Roboto sebagai default, bisa diganti
-      ),
-      // Kita akan menggunakan named routes untuk navigasi
-      routes: {
-        '/':
-            (context) =>
-                const LoginPage(), // Halaman login sebagai halaman awal
-        '/beranda':
-            (context) => const Text(
-              'Ini Halaman Beranda Dummy',
-            ), // Placeholder untuk HomeScreen
-        '/register':
-            (context) =>
-                const RegisterScreen(), // Menambahkan rute untuk RegisterScreen dari file terpisah
-      },
-      initialRoute: '/', // Set halaman awal ke Login
-    );
-  }
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
-
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage> {
-  // Controller untuk input email dan password
-  final TextEditingController _emailController = TextEditingController();
+class _RegisterScreenState extends State<RegisterScreen> {
+  // Controller untuk input
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _nikController =
+      TextEditingController(); // Controller baru untuk NIK
+  final TextEditingController _emailController =
+      TextEditingController(); // Menggunakan ini untuk ID/Email
   final TextEditingController _passwordController = TextEditingController();
 
-  // Instance dari AuthService
+  // Instance dari AuthService dan Firestore
   final AuthService _authService = AuthService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void dispose() {
+    _fullNameController.dispose();
+    _nikController.dispose(); // Dispose the new NIK controller
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -76,19 +40,20 @@ class _LoginPageState extends State<LoginPage> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: Colors.white, // Latar belakang putih sesuai gambar
+      backgroundColor: Colors.white, // Latar belakang putih sesuai login.screen
       appBar: AppBar(
         title: const Text(
-          'Login',
+          'Register',
           style: TextStyle(
-            color: Colors.black, // Warna teks AppBar
-            fontWeight: FontWeight.normal, // Teks login tidak bold
-          ),
+            color: Colors.black,
+            fontWeight: FontWeight.normal,
+          ), // Warna teks hitam
         ),
-        backgroundColor: Colors.transparent, // AppBar transparan
-        elevation: 0, // Tidak ada bayangan di bawah AppBar
-        automaticallyImplyLeading:
-            false, // Menghilangkan tombol back default jika ada
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        // Tombol kembali otomatis jika ada route yang bisa kembali
+        // Ini akan menampilkan tombol back untuk kembali ke LoginScreen
+        automaticallyImplyLeading: true,
       ),
       body: SingleChildScrollView(
         // Menggunakan SingleChildScrollView agar konten bisa discroll jika keyboard muncul
@@ -149,63 +114,89 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 35), // Spasi setelah deskripsi
-
+                      // Input Nama Lengkap
                       _buildInputField(
-                        'Masukkan ID Anda',
-                        Icons.person_outline,
-                        _emailController, // Menghubungkan controller
-                      ), // Input ID
+                        'Masukan Nama Lengkap Anda',
+                        Icons.person_outline, // Contoh ikon
+                        _fullNameController,
+                      ),
                       const SizedBox(height: 18), // Spasi antar input field
+                      // Input NIK (Nomor Induk Kependudukan)
                       _buildInputField(
-                        'Masukkan Password Anda',
+                        'Masukan NIK Anda',
+                        Icons.badge_outlined, // Ikon baru untuk NIK
+                        _nikController,
+                        keyboardType:
+                            TextInputType.number, // Hanya menerima angka
+                      ),
+                      const SizedBox(height: 18), // Spasi antar input field
+                      // Input ID (digunakan sebagai email untuk Firebase Auth)
+                      _buildInputField(
+                        'Masukan ID Anda (Email)',
+                        Icons.email_outlined, // Contoh ikon
+                        _emailController,
+                      ),
+                      const SizedBox(height: 18), // Spasi antar input field
+                      // Input Password
+                      _buildInputField(
+                        'Masukan Password Anda',
                         Icons.lock_outline,
-                        _passwordController, // Menghubungkan controller
+                        _passwordController,
                         isPassword: true,
-                      ), // Input Password
+                      ),
 
-                      const SizedBox(height: 35), // Spasi sebelum tombol login
+                      const SizedBox(height: 35), // Spasi sebelum tombol Daftar
 
                       SizedBox(
                         width: double.infinity, // Lebar tombol full
                         child: ElevatedButton(
                           onPressed: () async {
-                            // Aksi ketika tombol login ditekan
-                            print('Login button pressed');
+                            // Aksi ketika tombol Daftar ditekan
+                            print('Tombol Daftar ditekan');
                             try {
-                              // Memanggil metode login dari AuthService
-                              User?
-                              user = await _authService.signInWithEmailAndPassword(
-                                _emailController.text
-                                    .trim(), // Menggunakan .trim() untuk menghapus spasi
-                                _passwordController.text.trim(),
-                              );
+                              // Memanggil metode signUp dari AuthService
+                              final user = await _authService
+                                  .signUpWithEmailAndPassword(
+                                    _emailController.text.trim(),
+                                    _passwordController.text.trim(),
+                                  );
 
                               if (user != null) {
-                                // Login berhasil, navigasi ke halaman Beranda
-                                // Menggunakan pushReplacementNamed agar halaman login tidak bisa kembali
+                                // Pendaftaran autentikasi berhasil, sekarang simpan data tambahan ke Firestore
+                                await _firestore
+                                    .collection('users')
+                                    .doc(user.uid)
+                                    .set({
+                                      'fullName':
+                                          _fullNameController.text.trim(),
+                                      'nik': _nikController.text.trim(),
+                                      'email': _emailController.text.trim(),
+                                      'createdAt':
+                                          FieldValue.serverTimestamp(), // Tambahkan timestamp pembuatan
+                                    });
+
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      'Login berhasil untuk ${user.email}',
+                                      'Pendaftaran berhasil untuk ${user.email} dan data disimpan!',
                                     ),
                                   ),
                                 );
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/beranda',
-                                );
+                                // Kembali ke halaman login setelah pendaftaran berhasil
+                                Navigator.pop(context);
                               }
                             } on FirebaseAuthException catch (e) {
                               // Menampilkan pesan error dari Firebase Auth
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    e.message ?? 'Terjadi kesalahan login',
+                                    e.message ??
+                                        'Terjadi kesalahan pendaftaran',
                                   ),
                                 ),
                               );
                             } catch (e) {
-                              // Menampilkan pesan error umum
+                              // Menampilkan pesan error umum (termasuk error Firestore)
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Error: ${e.toString()}'),
@@ -228,7 +219,7 @@ class _LoginPageState extends State<LoginPage> {
                             elevation: 5, // Sedikit bayangan pada tombol
                           ),
                           child: const Text(
-                            'Login',
+                            'Daftar',
                             style: TextStyle(
                               fontSize:
                                   19, // Ukuran font tombol yang lebih besar
@@ -238,14 +229,16 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 25), // Spasi setelah tombol login
+                      const SizedBox(height: 25), // Spasi setelah tombol Daftar
 
                       TextButton(
                         onPressed: () {
-                          // Aksi ketika teks "Daftar GEMA ID ?" ditekan
-                          print('Navigating to Register Screen');
-                          // Navigasi ke halaman RegisterScreen
-                          Navigator.pushNamed(context, '/register');
+                          // Aksi ketika teks "Sudah Punya Akun GEMA ID ? Masuk" ditekan
+                          print('Navigating back to Login Screen');
+                          // Navigasi kembali ke halaman login
+                          Navigator.pop(
+                            context,
+                          ); // Menggunakan pop untuk kembali ke halaman sebelumnya
                         },
                         style: TextButton.styleFrom(
                           padding:
@@ -258,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
                                   .shrinkWrap, // Shrink tap target
                         ),
                         child: const Text(
-                          'Daftar GEMA ID ? atau lupa password?',
+                          'Sudah Punya Akun GEMA ID ? Masuk',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color:
@@ -287,6 +280,8 @@ class _LoginPageState extends State<LoginPage> {
     IconData icon,
     TextEditingController controller, { // Menambahkan parameter controller
     bool isPassword = false,
+    TextInputType keyboardType =
+        TextInputType.text, // Parameter baru untuk tipe keyboard
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -299,6 +294,7 @@ class _LoginPageState extends State<LoginPage> {
         controller: controller, // Menghubungkan controller ke TextField
         obscureText:
             isPassword, // Sembunyikan teks jika ini adalah password field
+        keyboardType: keyboardType, // Menentukan tipe keyboard
         style: const TextStyle(
           color: Colors.white,
           fontSize: 16,

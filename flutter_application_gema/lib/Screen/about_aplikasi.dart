@@ -1,42 +1,71 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 
-// Import halaman-halaman lain yang akan dihubungkan melalui BottomNavigationBar
-// Sesuaikan path import ini dengan lokasi file Anda di proyek.
-// Contoh:
-// import 'package:flutter_application_gema/pages/home_screen.dart';
-// import 'package:flutter_application_gema/pages/bantuan_saya_screen.dart';
-// import 'package:flutter_application_gema/pages/ajukan_bantuan_screen.dart';
-// import 'package:flutter_application_gema/pages/login_page.dart'; // Untuk logout
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GEMA Bantuan Aplikasi',
-      debugShowCheckedModeBanner: false, // Menghilangkan debug banner
-      theme: ThemeData(
-        primarySwatch: Colors.grey, // Tema warna utama
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'Roboto', // Contoh font
-      ),
-      // Anda harus mendefinisikan rute di sini atau di file `main.dart` utama aplikasi Anda
-      // Jika ini adalah file terpisah (misal about_aplikasi_screen.dart), maka rute harus ada di main.dart
-      home:
-          const AboutAplikasiScreen(), // Untuk tujuan demo, ini adalah halaman awal
-    );
-  }
-}
-
-class AboutAplikasiScreen extends StatelessWidget {
+// Mengubah AboutAplikasiScreen menjadi StatefulWidget
+class AboutAplikasiScreen extends StatefulWidget {
   const AboutAplikasiScreen({super.key});
 
+  @override
+  State<AboutAplikasiScreen> createState() => _AboutAplikasiScreenState();
+}
+
+class _AboutAplikasiScreenState extends State<AboutAplikasiScreen> {
   final String _location = 'Indonesia, Sumatera Barat, Padang'; // Lokasi statis
+
+  // Controllers untuk menampilkan Nama Akun dan NIK di header
+  final TextEditingController _namaAkunHeaderController =
+      TextEditingController();
+  final TextEditingController _nikHeaderController = TextEditingController();
+
+  // Instance Firebase Auth dan Firestore
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData(); // Memanggil fungsi untuk mengambil data pengguna untuk header
+  }
+
+  // Fungsi untuk mengambil data pengguna dari Firestore untuk header
+  void _fetchUserData() {
+    User? currentUser = _auth.currentUser;
+
+    if (currentUser != null) {
+      _firestore.collection('users').doc(currentUser.uid).snapshots().listen((
+        userSnapshot,
+      ) {
+        if (userSnapshot.exists && userSnapshot.data() != null) {
+          final userData = userSnapshot.data()!;
+          setState(() {
+            _namaAkunHeaderController.text =
+                userData['fullName'] ?? 'Nama Tidak Tersedia';
+            _nikHeaderController.text = userData['nik'] ?? 'NIK Tidak Tersedia';
+          });
+        } else {
+          // Handle jika dokumen pengguna tidak ada
+          setState(() {
+            _namaAkunHeaderController.text = 'Pengguna Tidak Ditemukan';
+            _nikHeaderController.text = 'NIK Tidak Ditemukan';
+          });
+        }
+      });
+    } else {
+      // Jika tidak ada pengguna yang login
+      setState(() {
+        _namaAkunHeaderController.text = 'Tidak Login';
+        _nikHeaderController.text = 'Tidak Login';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _namaAkunHeaderController.dispose();
+    _nikHeaderController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,9 +202,12 @@ class AboutAplikasiScreen extends StatelessWidget {
                           border: Border.all(color: Colors.black, width: 0.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: const TextField(
-                          readOnly: true,
-                          decoration: InputDecoration(
+                        child: TextField(
+                          // Menggunakan TextField
+                          controller:
+                              _namaAkunHeaderController, // Menghubungkan controller
+                          readOnly: true, // Read-only
+                          decoration: const InputDecoration(
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 5,
@@ -183,7 +215,10 @@ class AboutAplikasiScreen extends StatelessWidget {
                             ),
                             border: InputBorder.none,
                           ),
-                          style: TextStyle(fontSize: 12, color: Colors.black),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -198,9 +233,12 @@ class AboutAplikasiScreen extends StatelessWidget {
                           border: Border.all(color: Colors.black, width: 0.5),
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: const TextField(
-                          readOnly: true,
-                          decoration: InputDecoration(
+                        child: TextField(
+                          // Menggunakan TextField
+                          controller:
+                              _nikHeaderController, // Menghubungkan controller
+                          readOnly: true, // Read-only
+                          decoration: const InputDecoration(
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 5,
@@ -208,7 +246,10 @@ class AboutAplikasiScreen extends StatelessWidget {
                             ),
                             border: InputBorder.none,
                           ),
-                          style: TextStyle(fontSize: 12, color: Colors.black),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                     ],
@@ -279,9 +320,9 @@ class AboutAplikasiScreen extends StatelessWidget {
               // Ikon Home (Beranda) - Aktif karena sedang di halaman ini
               icon: const Icon(
                 Icons.grid_view,
-                color: Colors.green,
+                color: Color.fromARGB(255, 255, 255, 255),
                 size: 30,
-              ), // Warna hijau untuk indikator aktif
+              ), // Warna putih
               onPressed: () {
                 print('Home Grid pressed (Already on Home)');
                 Navigator.pushReplacementNamed(context, '/beranda');
@@ -305,7 +346,7 @@ class AboutAplikasiScreen extends StatelessWidget {
             IconButton(
               icon: const Icon(
                 Icons.help_outline,
-                color: Colors.white,
+                color: Colors.green,
                 size: 30,
               ),
               onPressed: () {
