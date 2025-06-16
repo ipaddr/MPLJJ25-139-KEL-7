@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 // Import halaman RegisterScreen
 import 'package:flutter_application_gema/Screen/register_user.dart';
 // Import AuthService
-import 'package:flutter_application_gema/service/auth_service.dart'; // Sesuaikan path ini jika berbeda
+import 'package:flutter_application_gema/service/auth_service.dart';
 
-// Pastikan Anda telah mengimpor halaman Beranda (HomeScreen)
-// Jika HomeScreen berada di file terpisah, misalnya:
-// import 'package:flutter_application_gema/pages/home_screen.dart';
-// Sesuaikan path import sesuai lokasi file Anda.
+// <<< PASTIKAN ANDA SUDAH MENGIMPOR FILE-FILE INI:
+import 'package:flutter_application_gema/Screen/beranda_admin.dart'; // Sesuaikan path jika berbeda
+import 'package:flutter_application_gema/Screen/beranda.dart'; // Sesuaikan path jika berbeda
+// >>>
 
 void main() {
   runApp(const MyApp());
@@ -21,28 +21,23 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'GEMA ID Login',
-      debugShowCheckedModeBanner:
-          false, // Menghilangkan debug banner di pojok kanan atas
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.green, // Tema warna utama, bisa disesuaikan
+        primarySwatch: Colors.green,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily:
-            'Roboto', // Menggunakan font Roboto sebagai default, bisa diganti
+        fontFamily: 'Roboto',
       ),
-      // Kita akan menggunakan named routes untuk navigasi
+      // <<< PERBARUI BAGIAN ROUTES INI:
       routes: {
-        '/':
-            (context) =>
-                const LoginPage(), // Halaman login sebagai halaman awal
-        '/beranda':
-            (context) => const Text(
-              'Ini Halaman Beranda Dummy',
-            ), // Placeholder untuk HomeScreen
-        '/register':
-            (context) =>
-                const RegisterScreen(), // Menambahkan rute untuk RegisterScreen dari file terpisah
+        '/': (context) => const LoginPage(),
+        '/register': (context) => const RegisterScreen(),
+        '/admin_home':
+            (context) => const BerandaAdminScreen(), // Rute untuk halaman admin
+        '/user_home':
+            (context) => const Beranda(), // Rute untuk halaman user biasa
       },
-      initialRoute: '/', // Set halaman awal ke Login
+      // >>>
+      initialRoute: '/',
     );
   }
 }
@@ -55,11 +50,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Controller untuk input email dan password
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // Instance dari AuthService
   final AuthService _authService = AuthService();
 
   @override
@@ -71,27 +63,21 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Mengambil ukuran layar untuk penyesuaian responsif
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: Colors.white, // Latar belakang putih sesuai gambar
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           'Login',
-          style: TextStyle(
-            color: Colors.black, // Warna teks AppBar
-            fontWeight: FontWeight.normal, // Teks login tidak bold
-          ),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.normal),
         ),
-        backgroundColor: Colors.transparent, // AppBar transparan
-        elevation: 0, // Tidak ada bayangan di bawah AppBar
-        automaticallyImplyLeading:
-            false, // Menghilangkan tombol back default jika ada
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
-        // Menggunakan SingleChildScrollView agar konten bisa discroll jika keyboard muncul
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight:
@@ -101,99 +87,111 @@ class _LoginPageState extends State<LoginPage> {
           ),
           child: IntrinsicHeight(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-              ), // Padding horizontal di sekeliling card
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Center(
                 child: Container(
-                  width:
-                      screenWidth *
-                      0.85, // Lebar card sekitar 85% dari lebar layar
+                  width: screenWidth * 0.85,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 25.0,
                     vertical: 35.0,
-                  ), // Padding di dalam card
+                  ),
                   decoration: BoxDecoration(
-                    color:
-                        Colors
-                            .grey[350], // Warna abu-abu yang lebih terang untuk background card
-                    borderRadius: BorderRadius.circular(
-                      25.0,
-                    ), // Sudut membulat yang lebih besar
+                    color: Colors.grey[350],
+                    borderRadius: BorderRadius.circular(25.0),
                   ),
                   child: Column(
-                    mainAxisSize:
-                        MainAxisSize
-                            .min, // Agar column mengambil ukuran minimum yang dibutuhkan
+                    mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       const Text(
                         'GEMA ID',
                         style: TextStyle(
-                          fontSize:
-                              32, // Ukuran font yang lebih besar untuk GEMA ID
-                          fontWeight: FontWeight.w900, // Sangat bold
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
                           color: Colors.black,
-                          letterSpacing: 1.5, // Sedikit spasi antar huruf
+                          letterSpacing: 1.5,
                         ),
                       ),
-                      const SizedBox(
-                        height: 5,
-                      ), // Spasi kecil antara judul dan deskripsi
+                      const SizedBox(height: 5),
                       const Text(
                         'Teknologi untuk Kesejahteraan yang Merata',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.black87,
-                          fontWeight: FontWeight.w500, // Sedikit lebih tebal
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 35), // Spasi setelah deskripsi
-
+                      const SizedBox(height: 35),
                       _buildInputField(
                         'Masukkan ID Anda',
                         Icons.person_outline,
-                        _emailController, // Menghubungkan controller
-                      ), // Input ID
-                      const SizedBox(height: 18), // Spasi antar input field
+                        _emailController,
+                      ),
+                      const SizedBox(height: 18),
                       _buildInputField(
                         'Masukkan Password Anda',
                         Icons.lock_outline,
-                        _passwordController, // Menghubungkan controller
+                        _passwordController,
                         isPassword: true,
-                      ), // Input Password
-
-                      const SizedBox(height: 35), // Spasi sebelum tombol login
-
+                      ),
+                      const SizedBox(height: 35),
                       SizedBox(
-                        width: double.infinity, // Lebar tombol full
+                        width: double.infinity,
                         child: ElevatedButton(
                           onPressed: () async {
-                            // Aksi ketika tombol login ditekan
                             print('Login button pressed');
                             try {
                               // Memanggil metode login dari AuthService
-                              User?
-                              user = await _authService.signInWithEmailAndPassword(
-                                _emailController.text
-                                    .trim(), // Menggunakan .trim() untuk menghapus spasi
-                                _passwordController.text.trim(),
-                              );
+                              User? user = await _authService
+                                  .signInWithEmailAndPassword(
+                                    _emailController.text.trim(),
+                                    _passwordController.text.trim(),
+                                  );
 
                               if (user != null) {
-                                // Login berhasil, navigasi ke halaman Beranda
-                                // Menggunakan pushReplacementNamed agar halaman login tidak bisa kembali
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Login berhasil untuk ${user.email}',
+                                // <<< LOGIKA NAVIGASI BERDASARKAN ROLE DIMULAI DI SINI
+                                String? userRole = await _authService
+                                    .getUserRole(user.uid);
+
+                                if (userRole == 'admin') {
+                                  // Jika peran adalah 'admin', navigasi ke halaman admin
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Login berhasil sebagai Admin: ${user.email}',
+                                      ),
                                     ),
-                                  ),
-                                );
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/beranda',
-                                );
+                                  );
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/admin_home',
+                                  );
+                                } else if (userRole == 'user') {
+                                  // Jika peran adalah 'user', navigasi ke halaman user
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Login berhasil: ${user.email}',
+                                      ),
+                                    ),
+                                  );
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/user_home',
+                                  );
+                                } else {
+                                  // Jika role tidak ditemukan atau tidak valid di Firestore
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Peran pengguna tidak dikenal atau tidak diatur.',
+                                      ),
+                                    ),
+                                  );
+                                  // Opsional: Logout pengguna jika role tidak valid
+                                  await _authService.signOut();
+                                }
+                                // >>> LOGIKA NAVIGASI BERAKHIR DI SINI
                               }
                             } on FirebaseAuthException catch (e) {
                               // Menampilkan pesan error dari Firebase Auth
@@ -214,59 +212,42 @@ class _LoginPageState extends State<LoginPage> {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors
-                                    .green[700], // Warna hijau yang gelap untuk tombol
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ), // Padding vertikal tombol
+                            backgroundColor: Colors.green[700],
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                12,
-                              ), // Sudut tombol yang membulat
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            elevation: 5, // Sedikit bayangan pada tombol
+                            elevation: 5,
                           ),
                           child: const Text(
                             'Login',
                             style: TextStyle(
-                              fontSize:
-                                  19, // Ukuran font tombol yang lebih besar
+                              fontSize: 19,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 25), // Spasi setelah tombol login
-
+                      const SizedBox(height: 25),
                       TextButton(
                         onPressed: () {
-                          // Aksi ketika teks "Daftar GEMA ID ?" ditekan
                           print('Navigating to Register Screen');
-                          // Navigasi ke halaman RegisterScreen
                           Navigator.pushNamed(context, '/register');
                         },
                         style: TextButton.styleFrom(
-                          padding:
-                              EdgeInsets
-                                  .zero, // Hapus padding default TextButton
-                          minimumSize:
-                              Size.zero, // Hapus min size default TextButton
-                          tapTargetSize:
-                              MaterialTapTargetSize
-                                  .shrinkWrap, // Shrink tap target
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: const Text(
                           'Daftar GEMA ID ? atau lupa password?',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color:
-                                Colors.black54, // Warna teks yang sedikit buram
+                            color: Colors.black54,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            decoration:
-                                TextDecoration.underline, // Tambah underline
+                            decoration: TextDecoration.underline,
                           ),
                         ),
                       ),
@@ -281,44 +262,31 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Widget pembantu untuk membuat TextField (input field)
   Widget _buildInputField(
     String hintText,
     IconData icon,
-    TextEditingController controller, { // Menambahkan parameter controller
+    TextEditingController controller, {
     bool isPassword = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.green[800], // Warna background input field
-        borderRadius: BorderRadius.circular(
-          12,
-        ), // Sudut membulat untuk input field
+        color: Colors.green[800],
+        borderRadius: BorderRadius.circular(12),
       ),
       child: TextField(
-        controller: controller, // Menghubungkan controller ke TextField
-        obscureText:
-            isPassword, // Sembunyikan teks jika ini adalah password field
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-        ), // Warna teks input dan ukuran
-        cursorColor: Colors.white, // Warna kursor
+        controller: controller,
+        obscureText: isPassword,
+        style: const TextStyle(color: Colors.white, fontSize: 16),
+        cursorColor: Colors.white,
         decoration: InputDecoration(
-          prefixIcon: Icon(
-            icon,
-            color: Colors.white70,
-          ), // Ikon di awal input field
+          prefixIcon: Icon(icon, color: Colors.white70),
           hintText: hintText,
-          hintStyle: const TextStyle(
-            color: Colors.white70,
-            fontSize: 16,
-          ), // Warna dan ukuran hint
-          border: InputBorder.none, // Hapus border default TextField
+          hintStyle: const TextStyle(color: Colors.white70, fontSize: 16),
+          border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             vertical: 15,
             horizontal: 10,
-          ), // Padding konten input
+          ),
         ),
       ),
     );
