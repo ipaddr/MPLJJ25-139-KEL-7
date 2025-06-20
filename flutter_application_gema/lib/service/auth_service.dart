@@ -1,22 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart'; // Digunakan untuk debugPrint
-import 'package:cloud_firestore/cloud_firestore.dart'; // <<< PENTING: TAMBAHKAN IMPORT INI
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance; // <<< PENTING: TAMBAHKAN INISIALISASI INI
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Mendapatkan stream perubahan status pengguna (login/logout)
   Stream<User?> get user {
     return _auth.authStateChanges();
   }
 
-  // Metode untuk mendaftar dengan email dan password
-  // >>> LOGIKA PENYIMPANAN ROLE DEFAULT SAAT PENDAFTARAN DITAMBAHKAN DI SINI
+  // MODIFIKASI: Tambahkan parameter 'role'
   Future<User?> signUpWithEmailAndPassword(
     String email,
     String password,
+    String role, // <<< TAMBAHKAN INI
   ) async {
     try {
       UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -26,16 +24,14 @@ class AuthService {
       User? user = result.user;
 
       if (user != null) {
-        // Simpan data pengguna baru ke koleksi 'users' di Firestore
+        // Simpan data pengguna baru ke koleksi 'users' di Firestore dengan role yang dipilih
         await _firestore.collection('users').doc(user.uid).set({
           'email': user.email,
-          'role':
-              'user', // <<< Role default untuk setiap pendaftaran baru adalah 'user'
-          'createdAt':
-              FieldValue.serverTimestamp(), // Opsional: untuk melacak waktu pendaftaran
+          'role': role, // <<< GUNAKAN PARAMETER ROLE DI SINI
+          'createdAt': FieldValue.serverTimestamp(),
         });
         debugPrint(
-          'Pengguna berhasil didaftarkan dan data disimpan ke Firestore: ${user.email}',
+          'Pengguna berhasil didaftarkan dan data disimpan ke Firestore: ${user.email} dengan role $role',
         );
       }
       debugPrint('Pengguna berhasil didaftarkan: ${user?.email}');
@@ -62,9 +58,8 @@ class AuthService {
       throw Exception('Terjadi kesalahan tidak terduga.');
     }
   }
-  // <<< AKHIR LOGIKA PENYIMPANAN ROLE DEFAULT
 
-  // Metode untuk login dengan email dan password
+  // Metode untuk login dengan email dan password (tetap sama)
   Future<User?> signInWithEmailAndPassword(
     String email,
     String password,
@@ -103,19 +98,15 @@ class AuthService {
     }
   }
 
-  // >>> PENTING: METODE BARU UNTUK MENDAPATKAN ROLE PENGGUNA DARI FIRESTORE
   Future<String?> getUserRole(String? uid) async {
     if (uid == null) {
       debugPrint('UID pengguna null, tidak dapat mengambil peran.');
       return null;
     }
     try {
-      // Ambil dokumen pengguna dari koleksi 'users' berdasarkan UID
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(uid).get();
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
 
       if (userDoc.exists && userDoc.data() != null) {
-        // Periksa apakah field 'role' ada dan bukan null
         if (userDoc.data() is Map<String, dynamic> &&
             (userDoc.data() as Map<String, dynamic>).containsKey('role')) {
           final role = userDoc['role'] as String?;
@@ -125,22 +116,20 @@ class AuthService {
           debugPrint(
             'Dokumen pengguna untuk UID $uid tidak memiliki field "role".',
           );
-          return null; // Dokumen ada tapi tidak punya field 'role'
+          return null;
         }
       } else {
         debugPrint(
           'Dokumen pengguna untuk UID $uid tidak ditemukan di Firestore.',
         );
-        return null; // Dokumen tidak ditemukan
+        return null;
       }
     } catch (e) {
       debugPrint('Error mendapatkan peran pengguna untuk UID $uid: $e');
       return null;
     }
   }
-  // <<< AKHIR DARI METODE getUserRole
 
-  // Metode untuk logout
   Future<void> signOut() async {
     try {
       await _auth.signOut();

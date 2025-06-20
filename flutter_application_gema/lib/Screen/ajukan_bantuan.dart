@@ -1,8 +1,8 @@
+// lib/Screen/ajukan_bantuan.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
-import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:firebase_auth/firebase_auth.dart';     // Import FirebaseAuth
 
-// Mengubah AjukanBantuanScreen menjadi StatefulWidget
 class AjukanBantuanScreen extends StatefulWidget {
   const AjukanBantuanScreen({super.key});
 
@@ -11,134 +11,148 @@ class AjukanBantuanScreen extends StatefulWidget {
 }
 
 class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
-  final String _location = 'Indonesia, Sumatera Barat, Padang'; // Lokasi statis
-
   // Controllers untuk input form pengajuan
   final TextEditingController _namaProgramController = TextEditingController();
-  final TextEditingController _deskripsiProgramController =
-      TextEditingController();
-  final TextEditingController _kategoriUsahaController =
-      TextEditingController();
-
-  // Controllers untuk menampilkan Nama Akun dan NIK di header
-  final TextEditingController _namaAkunHeaderController =
-      TextEditingController();
-  final TextEditingController _nikHeaderController = TextEditingController();
+  final TextEditingController _deskripsiProgramController = TextEditingController();
+  final TextEditingController _kategoriUsahaController = TextEditingController();
 
   // Instance Firebase Auth dan Firestore
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Variabel untuk data pengguna yang akan ditampilkan di header
+  String _userName = 'Memuat...';
+  String _userNIK = 'Memuat...';
+  String _userLocation = 'Memuat...'; // Akan diambil dari Firestore
+  String? _userUid; // UID pengguna yang sedang login
+
   @override
   void initState() {
     super.initState();
-    _fetchUserData(); // Memanggil fungsi untuk mengambil data pengguna untuk header
+    _loadUserData(); // Memanggil fungsi untuk mengambil data pengguna saat widget diinisialisasi
   }
 
   // Fungsi untuk mengambil data pengguna dari Firestore untuk header
-  void _fetchUserData() {
+  Future<void> _loadUserData() async {
     User? currentUser = _auth.currentUser;
 
     if (currentUser != null) {
-      _firestore.collection('users').doc(currentUser.uid).snapshots().listen((
-        userSnapshot,
-      ) {
-        if (userSnapshot.exists && userSnapshot.data() != null) {
-          final userData = userSnapshot.data()!;
+      setState(() {
+        _userUid = currentUser.uid; // Simpan UID pengguna
+      });
+      try {
+        // Ambil dokumen pengguna dari koleksi 'users'
+        DocumentSnapshot userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+
+        if (userDoc.exists && userDoc.data() != null) {
+          final userData = userDoc.data()! as Map<String, dynamic>;
           setState(() {
-            _namaAkunHeaderController.text =
-                userData['fullName'] ?? 'Nama Tidak Tersedia';
-            _nikHeaderController.text = userData['nik'] ?? 'NIK Tidak Tersedia';
+            // Ambil data nama, NIK, dan lokasi dari Firestore
+            _userName = userData['nama'] ?? 'Nama Tidak Tersedia'; // Menggunakan field 'nama'
+            _userNIK = userData['nik'] ?? 'NIK Tidak Tersedia';    // Menggunakan field 'nik'
+            _userLocation = userData['lokasi'] ?? 'Lokasi Tidak Tersedia'; // Menggunakan field 'lokasi'
+          });
+        } else {
+          debugPrint('Dokumen user tidak ditemukan untuk UID: ${currentUser.uid}');
+          setState(() {
+            _userName = 'Data Tidak Ditemukan';
+            _userNIK = 'Data Tidak Ditemukan';
+            _userLocation = 'Data Tidak Ditemukan';
           });
         }
-      });
+      } catch (e) {
+        debugPrint('Error memuat data pengguna: $e');
+        setState(() {
+          _userName = 'Error Memuat Data';
+          _userNIK = 'Error Memuat Data';
+          _userLocation = 'Error Memuat Data';
+        });
+      }
     } else {
+      // Jika pengguna belum login atau sesi telah berakhir
       setState(() {
-        _namaAkunHeaderController.text = 'Tidak Login';
-        _nikHeaderController.text = 'Tidak Login';
+        _userName = 'Silakan Login';
+        _userNIK = 'Silakan Login';
+        _userLocation = 'Silakan Login';
       });
+      // Opsional: Arahkan kembali ke halaman login jika user tidak terautentikasi
+      // Navigator.pushReplacementNamed(context, '/');
     }
   }
 
   // Fungsi untuk menyimpan pengajuan program ke Firestore
-  Future<void> _submitProgram() async {
+  Future<void> _submitPengajuan() async {
     User? currentUser = _auth.currentUser;
-    if (currentUser == null) {
+    if (currentUser == null || _userUid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Anda harus login untuk mengajukan bantuan.'),
-        ),
+        const SnackBar(content: Text('Anda harus login untuk mengajukan bantuan.')),
       );
       return;
     }
 
-    // Pastikan bidang usaha sudah ada (myBusiness document) sebelum mengajukan program
-    final businessDocRef = _firestore
-        .collection('users')
-        .doc(currentUser.uid)
-        .collection('usaha')
-        .doc('myBusiness');
-    final businessDoc = await businessDocRef.get();
-
-    if (!businessDoc.exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Anda harus mengisi data usaha terlebih dahulu di "Program Saya".',
-          ),
-        ),
-      );
-      return;
-    }
-
+    // Validasi input form
     if (_namaProgramController.text.isEmpty ||
         _deskripsiProgramController.text.isEmpty ||
         _kategoriUsahaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Harap lengkapi semua bidang program.')),
+        const SnackBar(content: Text('Semua field harus diisi!')),
       );
       return;
     }
 
     try {
-      // Menambahkan dokumen baru ke sub-koleksi 'programAjuan'
-      await businessDocRef.collection('programAjuan').add({
-        'namaProgram': _namaProgramController.text.trim(),
-        'deskripsiProgram': _deskripsiProgramController.text.trim(),
-        'kategoriUsaha': _kategoriUsahaController.text.trim(),
-        'status': 'Diajukan', // Status awal pengajuan
-        'tanggalPengajuan': FieldValue.serverTimestamp(), // Timestamp pengajuan
-        'userId': currentUser.uid, // Simpan UID pengguna
+      // PENTING: Menyimpan pengajuan di sub-koleksi 'pengajuan_bantuan' langsung di bawah dokumen user
+      // Ini sesuai dengan skema Collection Group Query untuk admin.
+      await _firestore
+          .collection('users')
+          .doc(_userUid) // UID user yang sedang login
+          .collection('pengajuan_bantuan') // Nama sub-koleksi
+          .add({
+        'nama_program': _namaProgramController.text.trim(),
+        'deskripsi_program': _deskripsiProgramController.text.trim(),
+        'kategori_usaha': _kategoriUsahaController.text.trim(),
+        'tanggal_pengajuan': FieldValue.serverTimestamp(), // Timestamp saat pengajuan dibuat
+        'status_pengajuan': 'Menunggu', // Status awal pengajuan
+        'user_uid': _userUid,          // Duplikasi UID user
+        'user_nama': _userName,        // Duplikasi nama user
+        'user_nik': _userNIK,          // Duplikasi NIK user
+        'user_lokasi': _userLocation,  // Duplikasi lokasi user
+        // Anda bisa menambahkan field lain yang relevan seperti URL gambar bukti, dll.
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pengajuan program berhasil dikirim!')),
+        const SnackBar(
+            content: Text('Pengajuan bantuan berhasil dikirim!'),
+            backgroundColor: Colors.green),
       );
+
       // Bersihkan form setelah pengajuan berhasil
       _namaProgramController.clear();
       _deskripsiProgramController.clear();
       _kategoriUsahaController.clear();
     } catch (e) {
+      debugPrint('Error mengajukan bantuan: $e'); // Untuk debugging
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengajukan program: ${e.toString()}')),
+        SnackBar(
+            content: Text('Gagal mengajukan bantuan: ${e.toString()}'),
+            backgroundColor: Colors.red),
       );
     }
   }
 
   @override
   void dispose() {
+    // Pastikan semua TextEditingController di-dispose untuk mencegah memory leaks
     _namaProgramController.dispose();
     _deskripsiProgramController.dispose();
     _kategoriUsahaController.dispose();
-    _namaAkunHeaderController.dispose();
-    _nikHeaderController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Latar belakang putih
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
           'Ajukan Bantuan',
@@ -146,78 +160,63 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading:
-            false, // Menghilangkan tombol back default jika ada
+        automaticallyImplyLeading: false, // Menghilangkan tombol back default
       ),
-      body: Column(
+      body: Column( // Menggunakan Column utama untuk struktur layout
         children: [
-          // Bagian Header Kustom (GEMA, Nama Akun, NIK, Lokasi) - Konsisten
+          // Bagian Header Kustom (GEMA, Nama Akun, NIK, Lokasi)
           _buildCustomHeader(),
-          // Garis pembatas horizontal tipis
+          // Garis pembatas horizontal tipis di bawah header
           Container(
             height: 1,
-            color: Colors.black,
+            color: Colors.grey.shade300, // Warna garis pemisah lebih halus
             margin: const EdgeInsets.symmetric(horizontal: 16.0),
           ),
-          Expanded(
+          Expanded( // Memastikan SingleChildScrollView mengambil sisa ruang
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(
-                16.0,
-              ), // Padding di sekeliling konten
+              padding: const EdgeInsets.all(16.0), // Padding di sekeliling konten
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start, // Rata kiri untuk label input
+                crossAxisAlignment: CrossAxisAlignment.start, // Rata kiri untuk label input
                 children: [
                   // Nama Program
-                  const Text(
-                    'Nama Program :',
-                    style: TextStyle(fontSize: 16, color: Colors.black),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildInputField(_namaProgramController),
+                  Text('Nama Program :', style: _labelStyle()),
+                  const SizedBox(height: 8),
+                  _buildInputField(_namaProgramController, 'Contoh: Bantuan Modal Usaha untuk UMKM'),
                   const SizedBox(height: 25), // Spasi antar input
+
                   // Deskripsi Program
-                  const Text(
-                    'Deskripsi Program :',
-                    style: TextStyle(fontSize: 16, color: Colors.black),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildMultiLineInputField(
-                    _deskripsiProgramController,
-                  ), // Input multi-baris
+                  Text('Deskripsi Program :', style: _labelStyle()),
+                  const SizedBox(height: 8),
+                  _buildMultilineInputField(_deskripsiProgramController, 'Jelaskan detail program yang diajukan...', maxLines: 5),
                   const SizedBox(height: 25),
 
                   // Kategori Usaha
-                  const Text(
-                    'Kategori Usaha :',
-                    style: TextStyle(fontSize: 16, color: Colors.black),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildInputField(_kategoriUsahaController),
-                  const SizedBox(height: 30), // Spasi sebelum tombol
+                  Text('Kategori Usaha :', style: _labelStyle()),
+                  const SizedBox(height: 8),
+                  _buildInputField(_kategoriUsahaController, 'Contoh: Pertanian, Perdagangan, Jasa, Manufaktur'),
+                  const SizedBox(height: 40), // Spasi sebelum tombol
+
                   // Tombol AJUKAN
                   SizedBox(
                     width: double.infinity, // Lebar tombol penuh
-                    height: 50, // Tinggi tombol
+                    height: 55, // Tinggi tombol sedikit lebih besar
                     child: ElevatedButton(
-                      onPressed: _submitProgram, // Panggil fungsi pengajuan
+                      onPressed: _submitPengajuan, // Panggil fungsi pengajuan
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(
-                          0xFF2C4372,
-                        ), // Warna biru gelap sesuai gambar
+                        backgroundColor: const Color(0xFF2C4372), // Warna biru gelap sesuai gambar
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            8,
-                          ), // Sudut membulat
+                          borderRadius: BorderRadius.circular(12), // Sudut membulat
                         ),
                         elevation: 5, // Sedikit bayangan
+                        shadowColor: Colors.blue.shade300, // Warna bayangan
                       ),
                       child: const Text(
-                        'AJUKAN',
+                        'AJUKAN BANTUAN', // Teks lebih spesifik
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 19,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
+                          letterSpacing: 0.8, // Sedikit spasi huruf
                         ),
                       ),
                     ),
@@ -227,20 +226,19 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
             ),
           ),
           // Garis pembatas horizontal tipis di atas bottom navigation
-          Container(height: 1, color: Colors.black),
+          // Container(height: 1, color: Colors.grey.shade300), // Jika menggunakan BottomNavigationBar terpisah
         ],
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(
-        context,
-      ), // Meneruskan context
+      // bottomNavigationBar: _buildBottomNavigationBar(context), // Hapus ini jika navbar di MainScreen
     );
   }
 
-  // MARK: - Custom Widgets (Konsisten dengan halaman sebelumnya)
+  // MARK: - Custom Widgets
 
+  // Widget untuk header kustom yang menampilkan GEMA, Nama Akun, NIK, dan Lokasi
   Widget _buildCustomHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 15.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,208 +246,113 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
           const Text(
             'GEMA',
             style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              letterSpacing: 2.0,
+              fontSize: 30,
+              fontWeight: FontWeight.w900, // Lebih bold
+              color: Colors.green, // Warna hijau agar menonjol
+              letterSpacing: 2.5, // Spasi huruf lebih lebar
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Icon(Icons.person, size: 30, color: Colors.black),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Nama Akun',
-                        style: TextStyle(fontSize: 10, color: Colors.black),
-                      ),
-                      Container(
-                        width: 120,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black, width: 0.5),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: TextField(
-                          controller: _namaAkunHeaderController,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'NIK',
-                        style: TextStyle(fontSize: 10, color: Colors.black),
-                      ),
-                      Container(
-                        width: 120,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black, width: 0.5),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: TextField(
-                          controller: _nikHeaderController,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: 16,
-                    color: Colors.black,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    _location,
-                    style: const TextStyle(fontSize: 11, color: Colors.black),
-                  ),
-                ],
-              ),
-            ],
+          Expanded( // Agar informasi user tidak meluber
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end, // Rata kanan
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min, // Agar Row sekecil mungkin
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person, size: 28, color: Colors.black54), // Ukuran ikon lebih kecil
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Nama Akun: $_userName', style: const TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 2),
+                        Text('NIK: $_userNIK', style: const TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 18, color: Colors.black54),
+                    const SizedBox(width: 5),
+                    Text(
+                      _userLocation, // Menggunakan lokasi dari state
+                      style: const TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  // Widget untuk label input (Nama Program, Deskripsi, Kategori)
+  TextStyle _labelStyle() {
+    return const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87);
+  }
+
+  // Widget untuk menampilkan info baris (Nama Akun, NIK, Lokasi)
+  Widget _buildInfoRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
   // Widget untuk input field standar (satu baris)
-  Widget _buildInputField(TextEditingController controller) {
-    return Container(
-      height: 40, // Tinggi fixed untuk input field
-      decoration: BoxDecoration(
-        color: Colors.grey[300], // Background abu-abu terang
-        borderRadius: BorderRadius.circular(8), // Sudut membulat
-      ),
-      child: TextField(
-        controller: controller, // Menghubungkan controller
-        decoration: const InputDecoration(
-          border: InputBorder.none, // Tanpa border bawaan TextField
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 15,
-            vertical: 10,
-          ), // Padding konten
+  Widget _buildInputField(TextEditingController controller, String hintText) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: hintText,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade400!, width: 1.0), // Border tipis
         ),
-        style: const TextStyle(color: Colors.black),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.blue.shade700!, width: 2.0), // Border tebal saat fokus
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15), // Padding vertikal lebih besar
       ),
+      style: const TextStyle(color: Colors.black),
     );
   }
 
   // Widget untuk input field multi-baris (Deskripsi Program)
-  Widget _buildMultiLineInputField(TextEditingController controller) {
-    return Container(
-      height: 120, // Tinggi fixed untuk multi-line input
-      decoration: BoxDecoration(
-        color: Colors.grey[300], // Background abu-abu terang
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: TextField(
-        controller: controller, // Menghubungkan controller
-        maxLines: null, // Memungkinkan input multi-baris
-        keyboardType:
-            TextInputType.multiline, // Menggunakan keyboard multi-baris
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+  Widget _buildMultilineInputField(TextEditingController controller, String hintText, {int maxLines = 5}) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines, // Memungkinkan input multi-baris hingga maxLines
+      keyboardType: TextInputType.multiline,
+      decoration: InputDecoration(
+        hintText: hintText,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade400!, width: 1.0),
         ),
-        style: const TextStyle(color: Colors.black),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.blue.shade700!, width: 2.0),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
       ),
+      style: const TextStyle(color: Colors.black),
     );
   }
 
-  // Mengubah _buildBottomNavigationBar menjadi metode yang menerima BuildContext
-  Widget _buildBottomNavigationBar(BuildContext context) {
-    return BottomAppBar(
-      color: Colors.black, // Background hitam
-      child: SizedBox(
-        height: 60, // Tinggi BottomAppBar
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: <Widget>[
-            IconButton(
-              // Ikon Home (Beranda)
-              icon: const Icon(
-                Icons.grid_view,
-                color: Color.fromARGB(255, 249, 249, 249),
-                size: 30,
-              ), // Warna putih
-              onPressed: () {
-                print('Home Grid pressed');
-                Navigator.pushReplacementNamed(context, '/beranda');
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.map, color: Colors.white, size: 30),
-              onPressed: () {
-                print('Bantuan Saya pressed');
-                Navigator.pushReplacementNamed(context, '/programSaya');
-              },
-            ),
-            IconButton(
-              // Ikon Ajukan Bantuan (Aktif)
-              icon: const Icon(Icons.send, color: Colors.green, size: 30),
-              onPressed: () {
-                print('Send pressed (Already on Ajukan Bantuan)');
-                Navigator.pushReplacementNamed(context, '/ajukanBantuan');
-              },
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.help_outline,
-                color: Colors.white,
-                size: 30,
-              ),
-              onPressed: () {
-                print('Archive pressed');
-                Navigator.pushReplacementNamed(context, '/aboutAplikasi');
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white, size: 30),
-              onPressed: () {
-                print('Help pressed');
-                Navigator.pushReplacementNamed(context, '/');
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // CATATAN: Widget _buildBottomNavigationBar telah dihapus dari sini.
+  // bottomNavigationBar seharusnya diimplementasikan di AdminMainScreen atau UserMainScreen
+  // sebagai navigasi utama aplikasi, bukan di setiap halaman individu.
 }

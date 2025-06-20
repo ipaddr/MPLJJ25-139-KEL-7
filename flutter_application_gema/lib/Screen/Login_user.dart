@@ -1,46 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-// Import halaman RegisterScreen
-import 'package:flutter_application_gema/Screen/register_user.dart';
 // Import AuthService
 import 'package:flutter_application_gema/service/auth_service.dart';
-
-// <<< PASTIKAN ANDA SUDAH MENGIMPOR FILE-FILE INI:
-import 'package:flutter_application_gema/Screen/beranda_admin.dart'; // Sesuaikan path jika berbeda
-import 'package:flutter_application_gema/Screen/beranda.dart'; // Sesuaikan path jika berbeda
+// Sesuaikan path jika berbeda
 // >>>
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GEMA ID Login',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'Roboto',
-      ),
-      // <<< PERBARUI BAGIAN ROUTES INI:
-      routes: {
-        '/': (context) => const LoginPage(),
-        '/register': (context) => const RegisterScreen(),
-        '/admin_home':
-            (context) => const BerandaAdminScreen(), // Rute untuk halaman admin
-        '/user_home':
-            (context) => const Beranda(), // Rute untuk halaman user biasa
-      },
-      // >>>
-      initialRoute: '/',
-    );
-  }
-}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

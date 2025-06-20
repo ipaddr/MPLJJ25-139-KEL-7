@@ -1,30 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // Import Firebase Core
-// Anda perlu mengimpor firebase_options.dart jika Anda menggunakan FlutterFire CLI
-// import 'package:flutter_application_gema/firebase_options.dart';
+import 'package:flutter_application_gema/Screen/admin_main_screen.dart';
 
-// Import halaman-halaman Anda dari folder 'Screen'
-import 'package:flutter_application_gema/Screen/login_user.dart';
-import 'package:flutter_application_gema/Screen/beranda.dart';
+// <<< PASTIKAN IMPORT FILE-FILE INI SUDAH BENAR DAN ADA
+// Jika AdminMainScreen berada di pages/, ubah pathnya
+import 'package:flutter_application_gema/Screen/login_user.dart';      // Halaman Login Anda
+import 'package:flutter_application_gema/Screen/beranda.dart';          // Halaman Beranda/User Home
 import 'package:flutter_application_gema/Screen/program_saya.dart';
 import 'package:flutter_application_gema/Screen/ajukan_bantuan.dart';
 import 'package:flutter_application_gema/Screen/about_aplikasi.dart';
 import 'package:flutter_application_gema/Screen/register_user.dart';
-import 'package:flutter_application_gema/Screen/berita_screen.dart'; // Pastikan ini diimpor
+import 'package:flutter_application_gema/Screen/berita_screen.dart';
+// import 'package:flutter_application_gema/Screen/dashboard_admin.dart'; // Tidak perlu diimpor langsung di sini jika dipakai di AdminMainScreen
+// >>>
 
-// Jika Anda berencana memiliki satu BottomNavigationBar sentral,
-// Anda akan membuat file navigation_bar.dart dengan widget MainNavigationPage di dalamnya.
-// Untuk saat ini, kita asumsikan setiap halaman memiliki BottomNavigationBar sendiri
-// seperti yang sudah kita buat di setiap kode halaman.
-// import 'package:flutter_application_gema/navigation_bar.dart'; // Akan digunakan jika ada MainNavigationPage
+// Import file firebase_options.dart jika sudah dijalankan 'flutterfire configure'
+// import 'firebase_options.dart'; // <<< PENTING: UNCOMMENT JIKA ADA
 
 void main() async {
-  // Tambahkan 'async' di sini karena ada operasi asynchronous
-  WidgetsFlutterBinding.ensureInitialized(); // Pastikan binding Flutter sudah diinisialisasi
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    // Inisialisasi Firebase
-    // Uncomment baris di bawah ini jika Anda telah menjalankan 'flutterfire configure'
-    // dan memiliki file firebase_options.dart
+    // <<< PENTING: UNCOMMENT DAN PASTIKAN OPSI INI DIGUNAKAN JIKA ANDA TELAH MENYIAPKAN FIREBASE
     // options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(const MyApp());
@@ -39,26 +35,25 @@ class MyApp extends StatelessWidget {
       title: 'GEMA App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Set tema global di sini agar konsisten di seluruh aplikasi
-        primarySwatch: Colors.grey, // Warna utama
+        primarySwatch: Colors.grey,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'Roboto', // Contoh font
+        fontFamily: 'Roboto',
       ),
-      // Definisikan rute aplikasi Anda yang tidak memerlukan argumen
       routes: {
         '/': (context) => const LoginPage(),
-        '/beranda': (context) => const Beranda(),
+        // Rute untuk halaman admin_main_screen yang sudah ada navbar
+        '/admin_home': (context) => const AdminMainScreen(), // <<< UBAH KE ADMINMAINSCREEN
+        // Rute untuk halaman user biasa
+        '/user_home': (context) => const Beranda(), // Ini sudah benar mengarah ke Beranda
         '/programSaya': (context) => const BantuanSayaScreen(),
         '/ajukanBantuan': (context) => const AjukanBantuanScreen(),
         '/aboutAplikasi': (context) => const AboutAplikasiScreen(),
         '/register': (context) => const RegisterScreen(),
-        // Rute '/beritaDetail' akan ditangani oleh onGenerateRoute
-        // Karena membutuhkan argumen (beritaId)
+        // '/beranda' jika Anda ingin memiliki rute terpisah untuk beranda tanpa navbar utama (tapi /user_home sudah ada)
+        // '/beranda': (context) => const Beranda(), // Ini mungkin duplikat jika /user_home juga Beranda
       },
-      // Gunakan onGenerateRoute untuk menangani rute dengan argumen
       onGenerateRoute: (settings) {
         if (settings.name == '/beritaDetail') {
-          // Asumsikan argumen adalah ID berita (String)
           final args = settings.arguments as String;
           return MaterialPageRoute(
             builder: (context) {
@@ -66,13 +61,10 @@ class MyApp extends StatelessWidget {
             },
           );
         }
-        // Jika rute tidak ditemukan di 'routes' map dan bukan '/beritaDetail',
-        // kembalikan rute yang tidak dikenal atau halaman error.
         return MaterialPageRoute(
           builder: (context) => const Text('Error: Halaman tidak ditemukan'),
         );
       },
-      // Anda bisa menggunakan initialRoute jika Anda lebih suka menentukannya di sini
       initialRoute: '/',
     );
   }

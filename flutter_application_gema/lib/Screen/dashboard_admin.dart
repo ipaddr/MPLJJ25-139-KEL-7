@@ -1,12 +1,14 @@
+// lib/Screen/dashboard_admin.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_application_gema/Screen/data_penerimaan_bantuan_admin.dart'; // Impor Data Penerimaan Bantuan Admin untuk navigasi
-import 'package:flutter_application_gema/Screen/verifikasi_monitoring_laporan_admin.dart'; // Impor Verifikasi Monitoring Laporan Admin untuk navigasi
+import 'package:flutter_application_gema/Screen/data_penerimaan_bantuan_admin.dart';
+import 'package:flutter_application_gema/Screen/verifikasi_monitoring_laporan_admin.dart'; // <<< IMPORT INI SUDAH BENAR (NAMA LAMA)
 
 class DashboardAdminScreen extends StatelessWidget {
   const DashboardAdminScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // SingleChildScrollView diperlukan di sini agar konten dashboard bisa discroll
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -18,67 +20,73 @@ class DashboardAdminScreen extends StatelessWidget {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            Wrap(
-              spacing: 16.0, // Spasi horizontal antar kartu
-              runSpacing: 16.0, // Spasi vertikal antar baris kartu
-              children: [
-                // Kartu "Data Penerima Bantuan"
-                _buildCard(
-                  context,
-                  icon: Icons.description,
-                  title: 'Data Penerima Bantuan',
-                  onTap: () {
-                    Navigator.push(
+            // Menggunakan LayoutBuilder untuk membuat Wrap lebih responsif
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Tentukan lebar kartu berdasarkan lebar layar
+                double cardWidth = (constraints.maxWidth / 2) - 8; // 2 kartu per baris dengan spasi
+                if (constraints.maxWidth > 600) { // Untuk layar yang lebih lebar, 3 atau 4 kartu per baris
+                  cardWidth = (constraints.maxWidth / 3) - 10; // Contoh 3 kartu per baris
+                  if (constraints.maxWidth > 900) {
+                    cardWidth = (constraints.maxWidth / 4) - 12; // Contoh 4 kartu per baris
+                  }
+                }
+                
+                return Wrap(
+                  spacing: 16.0, // Spasi horizontal antar kartu
+                  runSpacing: 16.0, // Spasi vertikal antar baris kartu
+                  alignment: WrapAlignment.center, // Pusatkan kartu jika tidak penuh satu baris
+                  children: [
+                    // Kartu "Data Penerima Bantuan"
+                    _buildCard(
                       context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                const DataPenerimaanBantuanAdminScreen(),
-                      ),
-                    );
-                  },
-                ),
-                // Kartu "Verifikasi Monitoring Lapangan"
-                _buildCard(
-                  context,
-                  icon: Icons.laptop_windows,
-                  title: 'Verifikasi Monitoring Lapangan',
-                  onTap: () {
-                    Navigator.push(
+                      icon: Icons.description,
+                      title: 'Data Penerima Bantuan',
+                      cardWidth: cardWidth, // Teruskan lebar kartu
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DataPenerimaanBantuanAdminScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    // Kartu "Verifikasi Monitoring Lapangan"
+                    _buildCard(
                       context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                const VerifikasiMonitoringLaporanAdminScreen(),
-                      ),
-                    );
-                  },
-                ),
-                // Tambahkan kartu lain sesuai gambar Dashboard Admin
-                _buildInfoCard('Jumlah Keluarga', '1.250.000', Colors.blue),
-                _buildInfoCard('Jumlah Bantuan', '3.750.000', Colors.green),
-                _buildInfoCard(
-                  'Bantuan Disalurkan',
-                  '1.000.000',
-                  Colors.orange,
-                ),
-                _buildInfoCard('Verifikasi Lapangan', '10.000', Colors.red),
-              ],
+                      icon: Icons.laptop_windows,
+                      title: 'Verifikasi Monitoring Lapangan', // <<< KEMBALIKAN JUDUL INI (JIKA PERNAH DIUBAH)
+                      cardWidth: cardWidth, // Teruskan lebar kartu
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            // <<< BARIS INI YANG HARUS KEMBALI KE NAMA KELAS LAMA
+                            builder: (context) => const VerifikasiMonitoringLaporanAdminScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    // Kartu info ringkasan, gunakan lebar yang sama dengan kartu aksi untuk konsistensi atau tetap kecil
+                    _buildInfoCard('Jumlah Keluarga', '1.250.000', Colors.blue, cardWidth),
+                    _buildInfoCard('Jumlah Bantuan', '3.750.000', Colors.green, cardWidth),
+                    _buildInfoCard('Bantuan Disalurkan', '1.000.000', Colors.orange, cardWidth),
+                    _buildInfoCard('Verifikasi Lapangan', '10.000', Colors.red, cardWidth),
+                  ],
+                );
+              }
             ),
             const SizedBox(height: 20),
-            // Placeholder untuk Grafik Cepat Hitung
             _buildSectionHeader('Grafik Cepat Hitung'),
             _buildChartPlaceholder(context, 'Grafik Bar'),
             const SizedBox(height: 20),
-            // Placeholder untuk Perkembangan Penerima Bantuan
             _buildSectionHeader('Perkembangan Penerima Bantuan'),
             _buildChartPlaceholder(context, 'Grafik Garis'),
             const SizedBox(height: 20),
-            // Placeholder untuk Distribusi Provinsi
             _buildSectionHeader('Distribusi Provinsi'),
             _buildChartPlaceholder(context, 'Peta Indonesia'),
             const SizedBox(height: 20),
-            // Placeholder untuk Grafik Bar Tambahan
             _buildChartPlaceholder(context, 'Grafik Bar Lainnya'),
           ],
         ),
@@ -86,11 +94,12 @@ class DashboardAdminScreen extends StatelessWidget {
     );
   }
 
-  // Fungsi pembangun kartu aksi
+  // Fungsi pembangun kartu aksi (ubah parameter cardWidth)
   Widget _buildCard(
     BuildContext context, {
     required IconData icon,
     required String title,
+    required double cardWidth, // <<< TAMBAHKAN INI
     VoidCallback? onTap,
   }) {
     return GestureDetector(
@@ -101,11 +110,7 @@ class DashboardAdminScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(15.0),
         ),
         child: Container(
-          width:
-              MediaQuery.of(context).size.width > 700
-                  ? MediaQuery.of(context).size.width *
-                      0.25 // Lebar lebih besar di layar desktop
-                  : MediaQuery.of(context).size.width * 0.4, // Lebar responsif
+          width: cardWidth, // <<< GUNAKAN PARAMETER INI
           padding: const EdgeInsets.all(20.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -127,13 +132,13 @@ class DashboardAdminScreen extends StatelessWidget {
     );
   }
 
-  // Fungsi pembangun kartu informasi ringkasan
-  Widget _buildInfoCard(String title, String value, Color color) {
+  // Fungsi pembangun kartu informasi ringkasan (ubah parameter cardWidth)
+  Widget _buildInfoCard(String title, String value, Color color, double cardWidth) { // <<< TAMBAHKAN INI
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
       child: Container(
-        width: 150, // Ukuran tetap untuk kartu info kecil
+        width: cardWidth, // <<< GUNAKAN PARAMETER INI
         padding: const EdgeInsets.all(15.0),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
@@ -163,7 +168,7 @@ class DashboardAdminScreen extends StatelessWidget {
     );
   }
 
-  // Fungsi pembangun header bagian
+  // Fungsi pembangun header bagian (tidak berubah)
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -174,7 +179,7 @@ class DashboardAdminScreen extends StatelessWidget {
     );
   }
 
-  // Fungsi placeholder untuk grafik
+  // Fungsi placeholder untuk grafik (tidak berubah)
   Widget _buildChartPlaceholder(BuildContext context, String chartType) {
     return Card(
       elevation: 2,
