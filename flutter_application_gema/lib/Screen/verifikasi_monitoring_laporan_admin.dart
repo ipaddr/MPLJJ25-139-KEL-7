@@ -1,40 +1,48 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <<< PENTING: Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 
-class VerifikasiMonitoringLaporanAdminScreen extends StatefulWidget { // <<< UBAH JADI StatefulWidget
+// VerifikasiMonitoringLaporanAdminScreen adalah StatefulWidget karena akan mengelola state
+// seperti filter, query pencarian, dan halaman pagination.
+class VerifikasiMonitoringLaporanAdminScreen extends StatefulWidget {
   const VerifikasiMonitoringLaporanAdminScreen({super.key});
 
   @override
   State<VerifikasiMonitoringLaporanAdminScreen> createState() => _VerifikasiMonitoringLaporanAdminScreenState();
 }
 
-class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonitoringLaporanAdminScreen> { // <<< UBAH NAMA STATE
-  String? _selectedLokasiFilter;
+class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonitoringLaporanAdminScreen> {
+  // State untuk menyimpan pilihan filter status verifikasi
   String? _selectedStatusFilter;
-  String _searchQuery = ''; // State untuk query pencarian
-  int _currentPage = 1; // Untuk pagination
-  final int _itemsPerPage = 10; // Jumlah item per halaman
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance; // Instance Firestore
+  // State untuk menyimpan query pencarian dari input teks
+  String _searchQuery = '';
 
-  // Fungsi untuk membangun Query Firestore berdasarkan filter
+  // State untuk pagination (nomor halaman saat ini)
+  int _currentPage = 1;
+  // Jumlah item yang ditampilkan per halaman
+  final int _itemsPerPage = 10;
+
+  // Instance FirebaseFirestore untuk berinteraksi dengan database Firestore
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Fungsi ini membangun objek Query Firestore berdasarkan filter yang dipilih.
+  // Sekarang menggunakan collectionGroup untuk mencari di semua sub-koleksi 'programAjuan'.
   Query _buildFirestoreQuery() {
-    Query query = _firestore.collection('monitoring_lapangan'); // Ganti dengan nama koleksi Anda
+    // Menggunakan collectionGroup untuk mencari di semua sub-koleksi 'programAjuan'
+    Query query = _firestore.collectionGroup('programAjuan');
 
-    if (_selectedLokasiFilter != null && _selectedLokasiFilter!.isNotEmpty) {
-      query = query.where('lokasi', isEqualTo: _selectedLokasiFilter);
-    }
+    // Filter berdasarkan status (menggantikan status_verifikasi dari kode lama)
     if (_selectedStatusFilter != null && _selectedStatusFilter!.isNotEmpty) {
-      query = query.where('status_verifikasi', isEqualTo: _selectedStatusFilter);
+      query = query.where('status', isEqualTo: _selectedStatusFilter);
     }
 
-    // Urutkan data, penting untuk konsistensi tampilan dan pagination
-    query = query.orderBy('tanggal_kunjungan', descending: true); // Urutkan berdasarkan tanggal terbaru
+    // Urutkan data berdasarkan tanggalPengajuan terbaru (menggantikan tanggal_kunjungan)
+    query = query.orderBy('tanggalPengajuan', descending: true);
 
     return query;
   }
 
-  // Fungsi untuk mendapatkan total jumlah dokumen
+  // Fungsi untuk mendapatkan total jumlah dokumen yang sesuai dengan filter
   Future<int> _getTotalDocumentsCount() async {
     final query = _buildFirestoreQuery();
     final snapshot = await query.count().get();
@@ -43,38 +51,42 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
 
   @override
   Widget build(BuildContext context) {
-    return Column( // Ganti SingleChildScrollView utama dengan Column
+    return Column( // Menggunakan Column sebagai widget utama untuk menata UI secara vertikal
       children: [
         Padding(
           padding: const EdgeInsets.all(20.0), // Padding lebih besar untuk seluruh konten
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start, // Rata kiri untuk elemen dalam kolom
             children: [
+              // Judul halaman "Verifikasi Laporan"
               const Text(
-                'Verifikasi Laporan', // Judul yang lebih ringkas
+                'Verifikasi Laporan Bantuan', // Judul disesuaikan
                 style: TextStyle(
-                  fontSize: 28, // Ukuran font lebih besar untuk judul utama
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepOrange, // Warna judul khusus untuk Verifikasi
+                  color: Colors.deepOrange,
                 ),
               ),
-              const SizedBox(height: 25), // Spasi lebih besar setelah judul
+              const SizedBox(height: 25), // Spasi setelah judul
 
-              // Bagian Filter dan Pencarian
+              // Bagian Filter dan Pencarian, dibangun oleh widget terpisah
               _buildFilterSearchSection(context),
               const SizedBox(height: 30), // Spasi setelah filter/pencarian
             ],
           ),
         ),
 
-        // Bagian Tabel Data
-        Expanded( // Memastikan tabel memenuhi sisa ruang yang tersedia
+        // Bagian Tabel Data, dibungkus dalam Expanded agar memenuhi sisa ruang vertikal
+        Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: _buildFirestoreQuery().snapshots(), // Mendengarkan stream data
+            // Mendengarkan stream data dari Firestore berdasarkan query yang dibangun
+            stream: _buildFirestoreQuery().snapshots(),
             builder: (context, snapshot) {
+              // Menampilkan indikator loading saat data sedang dimuat
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Colors.deepOrange)); // Tampilkan loading
+                return const Center(child: CircularProgressIndicator(color: Colors.deepOrange));
               }
+              // Menampilkan pesan error jika terjadi kesalahan saat memuat data
               if (snapshot.hasError) {
                 return Center(
                   child: Padding(
@@ -87,6 +99,7 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                   ),
                 );
               }
+              // Menampilkan pesan jika tidak ada data yang ditemukan
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return const Center(
                   child: Column(
@@ -95,7 +108,7 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                       Icon(Icons.info_outline, size: 50, color: Colors.grey),
                       SizedBox(height: 10),
                       Text(
-                        'Tidak ada laporan monitoring yang ditemukan.',
+                        'Tidak ada pengajuan program bantuan yang ditemukan.', // Teks disesuaikan
                         style: TextStyle(fontSize: 18, color: Colors.grey),
                       ),
                     ],
@@ -103,19 +116,22 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                 );
               }
 
+              // Jika data berhasil dimuat
               final List<DocumentSnapshot> allDocuments = snapshot.data!.docs;
 
-              // Filter data di sisi klien untuk pencarian teks
+              // Filter data di sisi klien untuk pencarian teks (_searchQuery).
+              // Sekarang mencari di namaProgram dan deskripsiProgram.
               final filteredDocuments = allDocuments.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final idVerifikasi = (data['id_verifikasi'] as String? ?? '').toLowerCase();
-                final namaPetugas = (data['nama_petugas'] as String? ?? '').toLowerCase();
+                final namaProgram = (data['namaProgram'] as String? ?? '').toLowerCase();
+                final deskripsiProgram = (data['deskripsiProgram'] as String? ?? '').toLowerCase(); // Tambah pencarian deskripsi
+                final kategoriUsaha = (data['kategoriUsaha'] as String? ?? '').toLowerCase(); // Tambah pencarian kategori
                 final query = _searchQuery.toLowerCase();
 
-                return idVerifikasi.contains(query) || namaPetugas.contains(query);
+                return namaProgram.contains(query) || deskripsiProgram.contains(query) || kategoriUsaha.contains(query);
               }).toList();
 
-              // Implementasi pagination di sisi klien
+              // Implementasi pagination di sisi klien:
               final int startIndex = (_currentPage - 1) * _itemsPerPage;
               final int endIndex = startIndex + _itemsPerPage;
               final List<DocumentSnapshot> paginatedDocuments = filteredDocuments.sublist(
@@ -123,14 +139,15 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                 endIndex.clamp(0, filteredDocuments.length),
               );
 
-              return _buildMonitoringTableSection(context, paginatedDocuments); // Teruskan data ke tabel
+              // Membangun tabel monitoring dengan data yang sudah difilter dan dipaginasi
+              return _buildMonitoringTableSection(context, paginatedDocuments);
             },
           ),
         ),
 
-        // Bagian Pagination (di luar StreamBuilder agar selalu terlihat)
+        // Bagian Pagination, ditampilkan di luar StreamBuilder agar selalu terlihat
         FutureBuilder<int>(
-          future: _getTotalDocumentsCount(), // Hitung total dokumen
+          future: _getTotalDocumentsCount(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -139,7 +156,7 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               );
             }
             if (snapshot.hasError || !snapshot.hasData) {
-              return const SizedBox.shrink(); // Sembunyikan jika ada error
+              return const SizedBox.shrink();
             }
 
             final int totalItems = snapshot.data!;
@@ -152,7 +169,8 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-  // --- Widget Bagian Filter dan Pencarian ---
+  // MARK: - Custom Widgets untuk Struktur UI
+
   Widget _buildFilterSearchSection(BuildContext context) {
     return Card(
       elevation: 5,
@@ -163,14 +181,14 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Filter Laporan Monitoring',
+              'Filter Pengajuan Bantuan', // Judul disesuaikan
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
             ),
             const SizedBox(height: 20),
             TextField(
               decoration: InputDecoration(
-                labelText: 'Cari ID Verifikasi / Nama Petugas',
-                hintText: 'Masukkan ID atau nama petugas',
+                labelText: 'Cari Nama Program / Deskripsi / Kategori Usaha', // Label disesuaikan
+                hintText: 'Masukkan kata kunci',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10.0),
                   borderSide: BorderSide(color: Colors.deepOrange.shade700!),
@@ -185,74 +203,27 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
-                  _currentPage = 1; // Reset halaman saat pencarian berubah
+                  _currentPage = 1;
                 });
               },
             ),
             const SizedBox(height: 15),
+            // Filter Lokasi dihilangkan karena tidak ada di dokumen programAjuan
+            // Hanya filter Status Verifikasi yang dipertahankan
             LayoutBuilder(
               builder: (context, constraints) {
-                if (constraints.maxWidth > 600) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: _buildDropdownFilter(
-                          labelText: 'Lokasi',
-                          value: _selectedLokasiFilter,
-                          items: const ['Sumatera Barat', 'Jawa Barat', 'DKI Jakarta', 'Sumatera Utara'], // Sesuaikan lokasi
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedLokasiFilter = value;
-                              _currentPage = 1; // Reset halaman saat filter berubah
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _buildDropdownFilter(
-                          labelText: 'Status Verifikasi',
-                          value: _selectedStatusFilter,
-                          items: const ['Disetujui', 'Ditolak', 'Menunggu'], // Sesuaikan dengan nilai di Firestore
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedStatusFilter = value;
-                              _currentPage = 1; // Reset halaman saat filter berubah
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                } else {
-                  return Column(
-                    children: [
-                      _buildDropdownFilter(
-                        labelText: 'Lokasi',
-                        value: _selectedLokasiFilter,
-                        items: const ['Sumatera Barat', 'Jawa Barat', 'DKI Jakarta', 'Sumatera Utara'],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedLokasiFilter = value;
-                            _currentPage = 1;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 15),
-                      _buildDropdownFilter(
-                        labelText: 'Status Verifikasi',
-                        value: _selectedStatusFilter,
-                        items: const ['Disetujui', 'Ditolak', 'Menunggu'],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedStatusFilter = value;
-                            _currentPage = 1;
-                          });
-                        },
-                      ),
-                    ],
-                  );
-                }
+                // Di sini hanya ada satu dropdown, jadi layoutnya lebih sederhana
+                return _buildDropdownFilter(
+                  labelText: 'Status Pengajuan', // Label disesuaikan
+                  value: _selectedStatusFilter,
+                  items: const ['Disetujui', 'Ditolak', 'Diajukan'], // Menggunakan 'Diajukan' sebagai status awal
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedStatusFilter = value;
+                      _currentPage = 1;
+                    });
+                  },
+                );
               },
             ),
             const SizedBox(height: 20),
@@ -268,7 +239,7 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                     icon: const Icon(Icons.check_circle_outline, color: Colors.white),
                     label: const Text('Terapkan', style: TextStyle(color: Colors.white, fontSize: 16)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepOrange[700], // Warna tombol utama
+                      backgroundColor: Colors.deepOrange[700],
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       elevation: 3,
@@ -276,28 +247,29 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                   ),
                 ),
                 const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _searchQuery = '';
-                      _selectedLokasiFilter = null;
-                      _selectedStatusFilter = null;
-                      _currentPage = 1; // Reset halaman
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Filter dan pencarian direset!')),
-                    );
-                  },
-                  icon: const Icon(Icons.clear, color: Colors.deepOrange),
-                  label: const Text('Reset', style: TextStyle(color: Colors.deepOrange, fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.deepOrange.shade700!), // Warna border tombol reset
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _searchQuery = '';
+                        _selectedStatusFilter = null;
+                        _currentPage = 1;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Filter dan pencarian direset!')),
+                      );
+                    },
+                    icon: const Icon(Icons.clear, color: Colors.deepOrange),
+                    label: const Text('Reset', style: TextStyle(color: Colors.deepOrange, fontSize: 16)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: Colors.deepOrange.shade700!),
+                      ),
+                      elevation: 3,
                     ),
-                    elevation: 3,
                   ),
                 ),
               ],
@@ -308,7 +280,6 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-  // Widget pembantu untuk Dropdown Filter
   Widget _buildDropdownFilter({
     required String labelText,
     String? value,
@@ -339,10 +310,9 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-  // --- Widget Bagian Tabel Data ---
   Widget _buildMonitoringTableSection(BuildContext context, List<DocumentSnapshot> data) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 20.0), // Padding horizontal untuk Card tabel
+      margin: const EdgeInsets.symmetric(horizontal: 20.0),
       elevation: 5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
       child: Padding(
@@ -353,62 +323,64 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
             const Padding(
               padding: EdgeInsets.fromLTRB(10, 10, 10, 0),
               child: Text(
-                'Daftar Laporan Monitoring',
+                'Daftar Pengajuan Program', // Judul disesuaikan
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
             ),
             const SizedBox(height: 15),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: ConstrainedBox( // Tambahkan ConstrainedBox untuk lebar minimum tabel
-                constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 60), // Lebar minimum agar tidak terlalu sempit
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 60),
                 child: DataTable(
-                  headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.deepOrange.shade100), // Warna header tabel
-                  dataRowHeight: 60, // Tinggi baris data
-                  columnSpacing: 25, // Spasi antar kolom
+                  headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.deepOrange.shade100),
+                  dataRowHeight: 60,
+                  columnSpacing: 25,
                   columns: const [
                     DataColumn(label: Text('No.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                    DataColumn(label: Text('ID Verifikasi', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                    DataColumn(label: Text('Petugas', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                    DataColumn(label: Text('Tanggal Kunjungan', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                    DataColumn(label: Text('Lokasi', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                    DataColumn(label: Text('Status Verifikasi', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
+                    DataColumn(label: Text('Nama Program', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Disganti
+                    DataColumn(label: Text('User ID Pengaju', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
+                    DataColumn(label: Text('Tanggal Pengajuan', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
+                    DataColumn(label: Text('Kategori Usaha', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
+                    DataColumn(label: Text('Status Pengajuan', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
                     DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
                   ],
                   rows: List<DataRow>.generate(
-                    data.length, // Jumlah baris sesuai data dari Firestore
+                    data.length,
                     (index) {
                       final doc = data[index];
-                      final item = doc.data() as Map<String, dynamic>; // Konversi ke Map
-                      final String idVerifikasi = item['id_verifikasi'] ?? 'N/A';
-                      final String namaPetugas = item['nama_petugas'] ?? 'N/A';
-                      final Timestamp? timestamp = item['tanggal_kunjungan'] as Timestamp?;
-                      final String tanggalKunjungan = timestamp != null
+                      final item = doc.data() as Map<String, dynamic>;
+                      
+                      // Ambil data dari Map, berikan nilai default 'N/A' jika null
+                      final String namaProgram = item['namaProgram'] ?? 'N/A';
+                      final String userIdPengaju = item['userId'] ?? 'N/A'; // Disesuaikan
+                      final Timestamp? timestamp = item['tanggalPengajuan'] as Timestamp?; // Disesuaikan
+                      final String tanggalPengajuan = timestamp != null
                           ? '${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year}'
                           : 'N/A';
-                      final String lokasi = item['lokasi'] ?? 'N/A';
-                      final String statusVerifikasi = item['status_verifikasi'] ?? 'N/A'; // Pastikan field 'status_verifikasi' ada
+                      final String kategoriUsaha = item['kategoriUsaha'] ?? 'N/A'; // Disesuaikan
+                      final String statusPengajuan = item['status'] ?? 'N/A'; // Disesuaikan (menggunakan field 'status')
 
                       Color statusColor = Colors.grey;
                       Color statusBgColor = Colors.grey.withOpacity(0.1);
-                      if (statusVerifikasi == 'Disetujui') {
+                      if (statusPengajuan == 'Disetujui') {
                         statusColor = Colors.green.shade800!;
                         statusBgColor = Colors.green.withOpacity(0.1);
-                      } else if (statusVerifikasi == 'Ditolak') {
+                      } else if (statusPengajuan == 'Ditolak') {
                         statusColor = Colors.red.shade800!;
                         statusBgColor = Colors.red.withOpacity(0.1);
-                      } else if (statusVerifikasi == 'Menunggu') {
+                      } else if (statusPengajuan == 'Diajukan') { // Status awal
                         statusColor = Colors.amber.shade800!;
                         statusBgColor = Colors.amber.withOpacity(0.1);
                       }
 
                       return DataRow(
                         cells: [
-                          DataCell(Text('${(index + 1) + (_currentPage - 1) * _itemsPerPage}')), // Nomor urut yang benar
-                          DataCell(Text(idVerifikasi)),
-                          DataCell(Text(namaPetugas)),
-                          DataCell(Text(tanggalKunjungan)),
-                          DataCell(Text(lokasi)),
+                          DataCell(Text('${(index + 1) + (_currentPage - 1) * _itemsPerPage}')),
+                          DataCell(Text(namaProgram)),
+                          DataCell(Text(userIdPengaju)),
+                          DataCell(Text(tanggalPengajuan)),
+                          DataCell(Text(kategoriUsaha)),
                           DataCell(
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -417,7 +389,7 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                statusVerifikasi,
+                                statusPengajuan,
                                 style: TextStyle(
                                   color: statusColor,
                                   fontWeight: FontWeight.bold,
@@ -435,33 +407,35 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                                   tooltip: 'Lihat Detail',
                                   onPressed: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Melihat detail laporan ${idVerifikasi}')),
+                                      SnackBar(content: Text('Melihat detail program ${namaProgram}')),
                                     );
-                                    // TODO: Navigasi ke halaman detail laporan
+                                    // TODO: Navigasi ke halaman detail laporan.
+                                    // Anda bisa meneruskan doc.reference.path atau data lain yang diperlukan.
                                   },
                                 ),
-                                // Tambahkan tombol Aksi lain jika diperlukan, misal "Approve/Reject"
-                                if (statusVerifikasi == 'Menunggu') // Contoh: Hanya tampilkan tombol ini jika status 'Menunggu'
+                                // Tombol "Setujui" hanya tampil jika status 'Diajukan'
+                                if (statusPengajuan == 'Diajukan')
                                   IconButton(
                                     icon: const Icon(Icons.check_circle, color: Colors.green),
                                     tooltip: 'Setujui',
                                     onPressed: () {
-                                      _showApprovalDialog(context, doc.id, idVerifikasi, 'Disetujui');
+                                      _showApprovalDialog(context, doc.reference, namaProgram, 'Disetujui'); // Gunakan doc.reference
                                     },
                                   ),
-                                if (statusVerifikasi == 'Menunggu')
+                                // Tombol "Tolak" hanya tampil jika status 'Diajukan'
+                                if (statusPengajuan == 'Diajukan')
                                   IconButton(
                                     icon: const Icon(Icons.cancel, color: Colors.red),
                                     tooltip: 'Tolak',
                                     onPressed: () {
-                                      _showApprovalDialog(context, doc.id, idVerifikasi, 'Ditolak');
+                                      _showApprovalDialog(context, doc.reference, namaProgram, 'Ditolak'); // Gunakan doc.reference
                                     },
                                   ),
                                 IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.red),
-                                  tooltip: 'Hapus Laporan',
+                                  tooltip: 'Hapus Pengajuan',
                                   onPressed: () {
-                                    _confirmDelete(context, doc.id, idVerifikasi);
+                                    _confirmDelete(context, doc.reference, namaProgram); // Gunakan doc.reference
                                   },
                                 ),
                               ],
@@ -481,14 +455,15 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
   }
 
   // Dialog konfirmasi setuju/tolak
-  Future<void> _showApprovalDialog(BuildContext context, String docId, String idVerifikasi, String newStatus) async {
+  // docRef sekarang menerima DocumentReference langsung
+  Future<void> _showApprovalDialog(BuildContext context, DocumentReference docRef, String namaProgram, String newStatus) async {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Text('$newStatus Laporan', style: const TextStyle(fontWeight: FontWeight.bold)),
-          content: Text('Apakah Anda yakin ingin $newStatus laporan verifikasi dengan ID "$idVerifikasi"?'),
+          title: Text('$newStatus Pengajuan', style: const TextStyle(fontWeight: FontWeight.bold)),
+          content: Text('Apakah Anda yakin ingin $newStatus pengajuan program "$namaProgram"?'),
           actions: <Widget>[
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
@@ -505,20 +480,21 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 try {
-                  await _firestore.collection('monitoring_lapangan').doc(docId).update({
-                    'status_verifikasi': newStatus,
-                    'last_updated': FieldValue.serverTimestamp(), // Tambahkan timestamp update
+                  // Menggunakan docRef langsung untuk update
+                  await docRef.update({
+                    'status': newStatus, // Field 'status' di dokumen programAjuan
+                    'last_updated_admin': FieldValue.serverTimestamp(), // Tambahkan timestamp update oleh admin
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Laporan ${idVerifikasi} berhasil di$newStatus!', style: const TextStyle(color: Colors.white)),
+                      content: Text('Pengajuan "${namaProgram}" berhasil di$newStatus!', style: const TextStyle(color: Colors.white)),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Gagal $newStatus laporan: $e', style: const TextStyle(color: Colors.white)),
+                      content: Text('Gagal $newStatus pengajuan: ${e.toString()}', style: const TextStyle(color: Colors.white)),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -531,16 +507,16 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-
-  // Dialog konfirmasi hapus (disesuaikan untuk laporan monitoring)
-  Future<void> _confirmDelete(BuildContext context, String docId, String idVerifikasi) async {
+  // Dialog konfirmasi hapus
+  // docRef sekarang menerima DocumentReference langsung
+  Future<void> _confirmDelete(BuildContext context, DocumentReference docRef, String namaProgram) async {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Konfirmasi Hapus Laporan', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Text('Apakah Anda yakin ingin menghapus laporan verifikasi dengan ID "$idVerifikasi"? Data yang dihapus tidak dapat dikembalikan.'),
+          title: const Text('Konfirmasi Hapus Pengajuan', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text('Apakah Anda yakin ingin menghapus pengajuan program "$namaProgram"? Data yang dihapus tidak dapat dikembalikan.'),
           actions: <Widget>[
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
@@ -555,17 +531,18 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 try {
-                  await _firestore.collection('monitoring_lapangan').doc(docId).delete();
+                  // Menggunakan docRef langsung untuk delete
+                  await docRef.delete();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Laporan ${idVerifikasi} berhasil dihapus!', style: const TextStyle(color: Colors.white)),
+                      content: Text('Pengajuan "${namaProgram}" berhasil dihapus!', style: const TextStyle(color: Colors.white)),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Gagal menghapus laporan: $e', style: const TextStyle(color: Colors.white)),
+                      content: Text('Gagal menghapus pengajuan: ${e.toString()}', style: const TextStyle(color: Colors.white)),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -578,10 +555,11 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-  // --- Widget Bagian Pagination ---
+  // MARK: - Widget Bagian Pagination
+
   Widget _buildPaginationSection(int totalPages) {
-    if (totalPages <= 1 && _searchQuery.isEmpty && _selectedLokasiFilter == null && _selectedStatusFilter == null) {
-      return const SizedBox.shrink(); // Sembunyikan pagination jika hanya ada 1 halaman dan tidak ada filter
+    if (totalPages <= 1 && _searchQuery.isEmpty && _selectedStatusFilter == null) {
+      return const SizedBox.shrink();
     }
 
     return Padding(
@@ -640,7 +618,6 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-  // Widget pembantu untuk tombol pagination
   Widget _buildPaginationButton(String text, bool isActive, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,

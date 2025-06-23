@@ -325,7 +325,7 @@ class _AboutAplikasiScreenState extends State<AboutAplikasiScreen> {
               ), // Warna putih
               onPressed: () {
                 print('Home Grid pressed (Already on Home)');
-                Navigator.pushReplacementNamed(context, '/beranda');
+                Navigator.pushReplacementNamed(context, '/user_home');
               },
             ),
             IconButton(

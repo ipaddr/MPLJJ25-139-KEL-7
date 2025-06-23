@@ -270,7 +270,7 @@ class _DataPenerimaanBantuanAdminScreenState extends State<DataPenerimaanBantuan
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
-                      side: BorderSide(color: Colors.blue.shade800!, width: 2.5),
+                      side: BorderSide(color: Colors.blue.shade800, width: 2.5),
                     ),
                     elevation: 10,
                     shadowColor: Colors.grey.shade400,
@@ -297,11 +297,11 @@ class _DataPenerimaanBantuanAdminScreenState extends State<DataPenerimaanBantuan
         labelStyle: TextStyle(color: Colors.blue.shade800, fontSize: 16), // Warna label
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18.0),
-          borderSide: BorderSide(color: Colors.blue.shade400!, width: 2.0),
+          borderSide: BorderSide(color: Colors.blue.shade400, width: 2.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18.0),
-          borderSide: BorderSide(color: Colors.blue.shade900!, width: 4.0),
+          borderSide: BorderSide(color: Colors.blue.shade900, width: 4.0),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
       ),
@@ -341,7 +341,7 @@ class _DataPenerimaanBantuanAdminScreenState extends State<DataPenerimaanBantuan
                 constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 100),
                 child: DataTable(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue.shade200!, width: 2.0), // Border lebih tebal
+                    border: Border.all(color: Colors.blue.shade200, width: 2.0), // Border lebih tebal
                     borderRadius: BorderRadius.circular(20),
                   ),
                   headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.blue.shade100), // Warna header tabel
@@ -373,13 +373,13 @@ class _DataPenerimaanBantuanAdminScreenState extends State<DataPenerimaanBantuan
                       Color statusColor = Colors.grey;
                       Color statusBgColor = Colors.grey.withOpacity(0.1);
                       if (statusPengajuan == 'Disetujui') {
-                        statusColor = Colors.green.shade800!;
+                        statusColor = Colors.green.shade800;
                         statusBgColor = Colors.green.withOpacity(0.1);
                       } else if (statusPengajuan == 'Ditolak') {
                         statusColor = Colors.red.shade800!;
                         statusBgColor = Colors.red.withOpacity(0.1);
                       } else if (statusPengajuan == 'Menunggu') {
-                        statusColor = Colors.amber.shade800!;
+                        statusColor = Colors.amber.shade800;
                         statusBgColor = Colors.amber.withOpacity(0.1);
                       }
 
@@ -482,7 +482,7 @@ class _DataPenerimaanBantuanAdminScreenState extends State<DataPenerimaanBantuan
   // Dialog konfirmasi setuju/tolak
   Future<void> _showApprovalDialog(BuildContext context, String userUid, String pengajuanId, String newStatus, String namaProgram) async {
     final bool isApproved = newStatus == 'Disetujui';
-    final Color dialogColor = isApproved ? Colors.green.shade700! : Colors.red.shade700!;
+    final Color dialogColor = isApproved ? Colors.green.shade700 : Colors.red.shade700;
 
     return showDialog<void>(
       context: context,
@@ -668,7 +668,7 @@ class _DataPenerimaanBantuanAdminScreenState extends State<DataPenerimaanBantuan
         decoration: BoxDecoration(
           color: isActive ? Colors.blue[700] : Colors.grey[200], // Warna disesuaikan
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: isActive ? Colors.blue.shade700! : Colors.grey.shade400!, width: 2.0),
+          border: Border.all(color: isActive ? Colors.blue.shade700 : Colors.grey.shade400!, width: 2.0),
           boxShadow: isActive
               ? [BoxShadow(color: Colors.blue.withOpacity(0.5), blurRadius: 12, offset: const Offset(0, 5))]
               : [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 6, offset: const Offset(0, 4))],
