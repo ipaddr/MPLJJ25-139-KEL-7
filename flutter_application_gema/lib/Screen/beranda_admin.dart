@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_gema/Screen/dashboard_admin.dart'; // Impor Dashboard Admin
-import 'package:flutter_application_gema/Screen/data_penerimaan_bantuan_admin.dart'; // Impor Data Penerimaan Bantuan Admin
+import 'package:flutter_application_gema/Screen/verifikasi_pengguna.dart'; // Impor Data Penerimaan Bantuan Admin
 import 'package:flutter_application_gema/Screen/verifikasi_monitoring_laporan_admin.dart'; // Impor Verifikasi Monitoring Laporan Admin
 import 'package:flutter_application_gema/Screen/statistik_laporan_admin.dart'; // Impor Statistik Laporan Admin
+import 'package:flutter_application_gema/Screen/tambah_berita.dart'; // <<< IMPOR HALAMAN TAMBAH BERITA BARU
 
 class BerandaAdminScreen extends StatefulWidget {
   const BerandaAdminScreen({super.key});
@@ -15,14 +15,22 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
   int _selectedIndex = 0; // Indeks item yang dipilih di drawer
 
   // Daftar widget untuk setiap halaman/menu
+  // Sesuaikan urutan ini dengan indeks yang Anda gunakan di _buildDrawerItem
   static final List<Widget> _widgetOptions = <Widget>[
-    const DashboardAdminScreen(), // Halaman Dashboard Admin
-    const DataPenerimaanBantuanAdminScreen(), // Halaman Data Penerima Bantuan Admin
-    const VerifikasiMonitoringLaporanAdminScreen(), // Halaman Verifikasi Monitoring Laporan Admin
-    const StatistikLaporanAdminScreen(), // Halaman Statistik Laporan Admin
+    const BerandaAdminScreen(), // 0: Halaman Dashboard Admin
+    const AdminUserVerificationScreen(), // 1: Halaman Verifikasi Pengguna Baru (sebelumnya Data Penerima Bantuan Admin, saya asumsikan ini yang Anda maksud)
+    const VerifikasiMonitoringLaporanAdminScreen(), // 2: Halaman Verifikasi Monitoring Laporan Admin
+    const StatistikLaporanAdminScreen(), // 3: Halaman Statistik Laporan Admin
+    const AddNewsScreen(), // <<< 4: Halaman Tambah Berita Baru
+    // Tambahkan halaman lain di sini sesuai kebutuhan
   ];
 
   void _onItemTapped(int index) {
+    // Logika untuk Log Out (indeks terakhir)
+    if (index == _widgetOptions.length) { // Jika indeks adalah untuk Log Out
+      _performLogout(); // Panggil fungsi logout
+      return; // Hentikan fungsi agar tidak update _selectedIndex atau navigasi lain
+    }
     setState(() {
       _selectedIndex = index; // Memperbarui indeks item yang dipilih
     });
@@ -31,6 +39,28 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
       Navigator.pop(context);
     }
   }
+
+  // Fungsi untuk menangani logout
+  void _performLogout() async {
+    // Anda perlu mengimpor AuthService dan FirebaseAuth di sini
+    // import 'package:firebase_auth/firebase_auth.dart';
+    // import 'package:flutter_application_gema/service/auth_service.dart';
+
+    // final FirebaseAuth _auth = FirebaseAuth.instance;
+    // final AuthService _authService = AuthService();
+
+    // try {
+    //   await _authService.signOut(); // Panggil fungsi signOut dari AuthService
+    //   Navigator.pushReplacementNamed(context, '/'); // Kembali ke halaman login
+    // } catch (e) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text('Gagal logout: ${e.toString()}')),
+    //   );
+    // }
+     // Placeholder untuk demo, Anda harus mengganti dengan logika logout sebenarnya
+    Navigator.pushReplacementNamed(context, '/');
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -65,11 +95,11 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 const Text(
-                  'Nama',
+                  'Nama', // TODO: Ambil nama admin dari Firestore
                   style: TextStyle(fontSize: 12, color: Colors.black),
                 ),
                 Text(
-                  'Akun',
+                  'Akun', // TODO: Ambil role admin dari Firestore
                   style: TextStyle(fontSize: 10, color: Colors.grey[700]),
                 ),
               ],
@@ -84,8 +114,8 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
       drawer:
           MediaQuery.of(context).size.width <= 600
               ? Drawer(
-                child: _buildDrawerContent(context), // Konten drawer
-              )
+                  child: _buildDrawerContent(context), // Konten drawer
+                )
               : null, // Jika layar besar, jangan tampilkan drawer
       body: Row(
         children: [
@@ -155,14 +185,14 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
                     color: Colors.black,
                   ), // Ikon jam
                   const SizedBox(width: 8),
-                  const Text('00:00', style: TextStyle(color: Colors.black)),
+                  const Text('00:00', style: TextStyle(color: Colors.black)), // TODO: Ambil waktu sebenarnya
                   const SizedBox(width: 24),
                   const Icon(
                     Icons.calendar_today,
                     color: Colors.black,
                   ), // Ikon kalender
                   const SizedBox(width: 8),
-                  const Text('XX/XX/XX', style: TextStyle(color: Colors.black)),
+                  const Text('XX/XX/XX', style: TextStyle(color: Colors.black)), // TODO: Ambil tanggal sebenarnya
                 ],
               ),
             ],
@@ -177,14 +207,14 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
         ),
         _buildDrawerItem(
           1,
-          Icons.people,
-          'Data Penerima Bantuan',
+          Icons.people, // Ikon untuk verifikasi pengguna
+          'Verifikasi Pengguna', // Mengubah label
           isSidebar: isSidebar,
         ),
         _buildDrawerItem(
           2,
-          Icons.verified_user,
-          'Verifikasi Monitoring Lapangan',
+          Icons.verified_user, // Mengubah ikon agar lebih relevan dengan monitoring/verifikasi laporan
+          'Verifikasi Monitoring Laporan', // Mengubah label
           isSidebar: isSidebar,
         ),
         _buildDrawerItem(
@@ -193,7 +223,17 @@ class _BerandaAdminScreenState extends State<BerandaAdminScreen> {
           'Statistik Laporan',
           isSidebar: isSidebar,
         ),
-        _buildDrawerItem(4, Icons.logout, 'Log Out', isSidebar: isSidebar),
+        // <<< ITEM MENU BARU UNTUK TAMBAH BERITA
+        _buildDrawerItem(
+          4,
+          Icons.newspaper, // Ikon untuk berita
+          'Tambah Berita',
+          isSidebar: isSidebar,
+        ),
+        // >>>
+
+        // Item Log Out - Indeksnya disesuaikan dengan jumlah item di _widgetOptions
+        _buildDrawerItem(_widgetOptions.length, Icons.logout, 'Log Out', isSidebar: isSidebar),
       ],
     );
   }

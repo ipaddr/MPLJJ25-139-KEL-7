@@ -15,14 +15,11 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
 
   // Controllers untuk input form pengajuan
   final TextEditingController _namaProgramController = TextEditingController();
-  final TextEditingController _deskripsiProgramController =
-      TextEditingController();
-  final TextEditingController _kategoriUsahaController =
-      TextEditingController();
+  final TextEditingController _deskripsiProgramController = TextEditingController();
+  final TextEditingController _kategoriUsahaController = TextEditingController();
 
   // Controllers untuk menampilkan Nama Akun dan NIK di header
-  final TextEditingController _namaAkunHeaderController =
-      TextEditingController();
+  final TextEditingController _namaAkunHeaderController = TextEditingController();
   final TextEditingController _nikHeaderController = TextEditingController();
 
   // Instance Firebase Auth dan Firestore
@@ -40,14 +37,14 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
     User? currentUser = _auth.currentUser;
 
     if (currentUser != null) {
+      // Mengambil data pengguna dari koleksi 'users' tingkat atas
       _firestore.collection('users').doc(currentUser.uid).snapshots().listen((
         userSnapshot,
       ) {
         if (userSnapshot.exists && userSnapshot.data() != null) {
           final userData = userSnapshot.data()!;
           setState(() {
-            _namaAkunHeaderController.text =
-                userData['fullName'] ?? 'Nama Tidak Tersedia';
+            _namaAkunHeaderController.text = userData['fullName'] ?? 'Nama Tidak Tersedia';
             _nikHeaderController.text = userData['nik'] ?? 'NIK Tidak Tersedia';
           });
         }
@@ -72,24 +69,27 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
       return;
     }
 
-    // Pastikan bidang usaha sudah ada (myBusiness document) sebelum mengajukan program
-    final businessDocRef = _firestore
-        .collection('users')
-        .doc(currentUser.uid)
-        .collection('usaha')
-        .doc('myBusiness');
-    final businessDoc = await businessDocRef.get();
+    // --- Perubahan Penting di Sini: Memverifikasi Usaha di Koleksi Top-Level 'usaha' ---
+    // Mencari dokumen usaha milik pengguna yang sedang login di koleksi 'usaha'
+    final userBusinessQuery = await _firestore
+        .collection('usaha') // Mengakses koleksi 'usaha' tingkat atas
+        .where('userId', isEqualTo: currentUser.uid) // Memfilter berdasarkan userId
+        .limit(1) // Ambil hanya satu dokumen usaha (asumsi 1 user = 1 usaha utama)
+        .get();
 
-    if (!businessDoc.exists) {
+    if (userBusinessQuery.docs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Anda harus mengisi data usaha terlebih dahulu di "Program Saya".',
+            'Anda harus mengisi data usaha terlebih dahulu di bagian "Usaha Saya".', // Pesan disesuaikan
           ),
         ),
       );
       return;
     }
+
+    // Ambil ID dokumen usaha yang ditemukan
+    final businessDocId = userBusinessQuery.docs.first.id;
 
     if (_namaProgramController.text.isEmpty ||
         _deskripsiProgramController.text.isEmpty ||
@@ -101,14 +101,15 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
     }
 
     try {
-      // Menambahkan dokumen baru ke sub-koleksi 'programAjuan'
-      await businessDocRef.collection('programAjuan').add({
+      // --- Perubahan Penting di Sini: Menambahkan dokumen baru ke Koleksi Top-Level 'programBantuan' ---
+      await _firestore.collection('programBantuan').add({
         'namaProgram': _namaProgramController.text.trim(),
         'deskripsiProgram': _deskripsiProgramController.text.trim(),
         'kategoriUsaha': _kategoriUsahaController.text.trim(),
         'status': 'Diajukan', // Status awal pengajuan
         'tanggalPengajuan': FieldValue.serverTimestamp(), // Timestamp pengajuan
         'userId': currentUser.uid, // Simpan UID pengguna
+        'businessId': businessDocId, // Simpan ID usaha yang mengajukan
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -146,8 +147,7 @@ class _AjukanBantuanScreenState extends State<AjukanBantuanScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading:
-            false, // Menghilangkan tombol back default jika ada
+        automaticallyImplyLeading: false, // Menghilangkan tombol back default jika ada
       ),
       body: Column(
         children: [

@@ -1,142 +1,108 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart'; // Digunakan untuk debugPrint
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Stream<User?> get user {
-    return _auth.authStateChanges();
-  }
-
-  // MODIFIKASI: Tambahkan parameter 'role'
+  // Fungsi untuk mendaftar pengguna dengan email, password, role, fullName, dan nik
   Future<User?> signUpWithEmailAndPassword(
-    String email,
-    String password,
-    String role, // <<< TAMBAHKAN INI
-  ) async {
+      String email, String password, String role, String fullName, String nik) async {
     try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-      User? user = result.user;
+
+      User? user = userCredential.user;
 
       if (user != null) {
-        // Simpan data pengguna baru ke koleksi 'users' di Firestore dengan role yang dipilih
+        // Simpan data pengguna ke koleksi 'users' di Firestore
         await _firestore.collection('users').doc(user.uid).set({
-          'email': user.email,
-          'role': role, // <<< GUNAKAN PARAMETER ROLE DI SINI
+          'email': email,
+          'role': role,
+          'fullName': fullName,
+          'nik': nik,
           'createdAt': FieldValue.serverTimestamp(),
+          'verified': false, // <<< PENTING: Set status verifikasi awal ke false
         });
-        debugPrint(
-          'Pengguna berhasil didaftarkan dan data disimpan ke Firestore: ${user.email} dengan role $role',
-        );
       }
-      debugPrint('Pengguna berhasil didaftarkan: ${user?.email}');
       return user;
     } on FirebaseAuthException catch (e) {
-      debugPrint('Gagal mendaftar: ${e.message}');
-      String errorMessage;
-      switch (e.code) {
-        case 'weak-password':
-          errorMessage = 'Kata sandi terlalu lemah.';
-          break;
-        case 'email-already-in-use':
-          errorMessage = 'Email sudah digunakan oleh akun lain.';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Format email tidak valid.';
-          break;
-        default:
-          errorMessage = 'Terjadi kesalahan saat mendaftar. Silakan coba lagi.';
+      if (e.code == 'weak-password') {
+        throw Exception('Password terlalu lemah.');
+      } else if (e.code == 'email-already-in-use') {
+        throw Exception('Akun sudah terdaftar untuk email tersebut.');
       }
-      throw FirebaseAuthException(code: e.code, message: errorMessage);
+      throw Exception(e.message ?? 'Terjadi kesalahan Firebase Auth.');
     } catch (e) {
-      debugPrint('Terjadi kesalahan tidak terduga saat mendaftar: $e');
-      throw Exception('Terjadi kesalahan tidak terduga.');
+      throw Exception('Gagal mendaftar: ${e.toString()}');
     }
   }
 
-  // Metode untuk login dengan email dan password (tetap sama)
-  Future<User?> signInWithEmailAndPassword(
-    String email,
-    String password,
-  ) async {
+  // Fungsi untuk login pengguna
+  Future<User?> signInWithEmailAndPassword(String email, String password) async {
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      User? user = result.user;
-      debugPrint('Pengguna berhasil login: ${user?.email}');
-      return user;
-    } on FirebaseAuthException catch (e) {
-      debugPrint('Gagal login: ${e.message}');
-      String errorMessage;
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'Pengguna dengan email tersebut tidak ditemukan.';
-          break;
-        case 'wrong-password':
-          errorMessage = 'Kata sandi salah.';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Format email tidak valid.';
-          break;
-        case 'user-disabled':
-          errorMessage = 'Akun pengguna telah dinonaktifkan.';
-          break;
-        default:
-          errorMessage = 'Terjadi kesalahan saat login. Silakan coba lagi.';
+
+      User? user = userCredential.user;
+
+      if (user != null) {
+        // Setelah login berhasil, cek status verifikasi di Firestore
+        DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          bool? isVerified = userDoc.get('verified') as bool?;
+          
+          if (isVerified == true) {
+            return user; // Pengguna diverifikasi, izinkan login
+          } else {
+            // Pengguna belum diverifikasi, logout dan lempar exception
+            await _auth.signOut(); // Pastikan pengguna di-logout
+            throw Exception('Akun Anda belum diverifikasi oleh admin. Mohon tunggu konfirmasi.');
+          }
+        } else {
+          // Dokumen pengguna tidak ditemukan di Firestore, mungkin ada inkonsistensi
+          await _auth.signOut();
+          throw Exception('Data pengguna tidak ditemukan. Mohon coba lagi atau daftar ulang.');
+        }
       }
-      throw FirebaseAuthException(code: e.code, message: errorMessage);
+      return null; // Seharusnya tidak tercapai karena Exception di atas atau user != null
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception('Tidak ada pengguna ditemukan untuk email tersebut.');
+      } else if (e.code == 'wrong-password') {
+        throw Exception('Password salah untuk email tersebut.');
+      }
+      throw Exception(e.message ?? 'Terjadi kesalahan Firebase Auth.');
     } catch (e) {
-      debugPrint('Terjadi kesalahan tidak terduga saat login: $e');
-      throw Exception('Terjadi kesalahan tidak terduga.');
+      throw Exception('Gagal login: ${e.toString()}');
     }
   }
 
-  Future<String?> getUserRole(String? uid) async {
-    if (uid == null) {
-      debugPrint('UID pengguna null, tidak dapat mengambil peran.');
-      return null;
-    }
+  // Fungsi untuk mengambil peran pengguna dari Firestore
+  Future<String?> getUserRole(String uid) async {
     try {
       DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
-
-      if (userDoc.exists && userDoc.data() != null) {
-        if (userDoc.data() is Map<String, dynamic> &&
-            (userDoc.data() as Map<String, dynamic>).containsKey('role')) {
-          final role = userDoc['role'] as String?;
-          debugPrint('Peran untuk UID $uid: $role');
-          return role;
-        } else {
-          debugPrint(
-            'Dokumen pengguna untuk UID $uid tidak memiliki field "role".',
-          );
-          return null;
-        }
-      } else {
-        debugPrint(
-          'Dokumen pengguna untuk UID $uid tidak ditemukan di Firestore.',
-        );
-        return null;
+      if (userDoc.exists) {
+        return userDoc.get('role') as String?;
       }
+      return null;
     } catch (e) {
-      debugPrint('Error mendapatkan peran pengguna untuk UID $uid: $e');
+      print('Error getting user role: $e');
       return null;
     }
   }
 
+  // Fungsi untuk logout
   Future<void> signOut() async {
-    try {
-      await _auth.signOut();
-      debugPrint('Pengguna berhasil logout.');
-    } catch (e) {
-      debugPrint('Gagal logout: $e');
-      throw Exception('Terjadi kesalahan saat logout.');
-    }
+    await _auth.signOut();
+  }
+
+  // Mendapatkan stream perubahan status autentikasi
+  Stream<User?> get user {
+    return _auth.authStateChanges();
   }
 }

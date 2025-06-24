@@ -16,20 +16,19 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
   // Controllers untuk input dan tampilan data usaha
   final TextEditingController _namaUsahaController = TextEditingController();
   final TextEditingController _jenisUsahaController = TextEditingController();
-  final TextEditingController _deskripsiUsahaController =
-      TextEditingController();
+  final TextEditingController _deskripsiUsahaController = TextEditingController();
 
   // Controllers untuk menampilkan Nama Akun dan NIK di header
-  final TextEditingController _namaAkunHeaderController =
-      TextEditingController();
+  final TextEditingController _namaAkunHeaderController = TextEditingController();
   final TextEditingController _nikHeaderController = TextEditingController();
 
   // Instance Firebase Auth dan Firestore
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Variabel untuk menyimpan data usaha yang sudah ada
-  Map<String, dynamic>? _businessData;
+  // Variabel untuk menyimpan DocumentSnapshot dari data usaha yang sudah ada.
+  // Ini penting agar kita bisa tahu ID dokumen usaha untuk operasi update.
+  DocumentSnapshot? _businessDocSnapshot;
   bool _isLoadingUserData = true; // State untuk loading data pengguna dan usaha
 
   @override
@@ -40,19 +39,17 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
 
   // Fungsi untuk mengambil data pengguna dan usaha dari Firestore
   void _fetchUserDataAndBusiness() {
-    User? currentUser =
-        _auth.currentUser; // Mendapatkan pengguna yang sedang login
+    User? currentUser = _auth.currentUser; // Mendapatkan pengguna yang sedang login
 
     if (currentUser != null) {
-      // Mendengarkan perubahan data pengguna untuk header
+      // Mendengarkan perubahan data pengguna untuk header (dari koleksi 'users')
       _firestore.collection('users').doc(currentUser.uid).snapshots().listen((
         userSnapshot,
       ) {
         if (userSnapshot.exists && userSnapshot.data() != null) {
           final userData = userSnapshot.data()!;
           setState(() {
-            _namaAkunHeaderController.text =
-                userData['fullName'] ?? 'Nama Tidak Tersedia';
+            _namaAkunHeaderController.text = userData['fullName'] ?? 'Nama Tidak Tersedia';
             _nikHeaderController.text = userData['nik'] ?? 'NIK Tidak Tersedia';
           });
         } else {
@@ -64,22 +61,30 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
         }
       });
 
-      // Mendengarkan perubahan data usaha pengguna
+      // --- Perubahan Penting di Sini: Mengambil data usaha dari koleksi top-level 'usaha' ---
       _firestore
-          .collection('users')
-          .doc(currentUser.uid)
           .collection('usaha')
-          .doc('myBusiness')
+          .where('userId', isEqualTo: currentUser.uid) // Mencari dokumen usaha berdasarkan userId
+          .limit(1) // Asumsi 1 pengguna hanya memiliki 1 usaha utama untuk ditampilkan di layar ini
           .snapshots()
-          .listen((businessSnapshot) {
-            if (businessSnapshot.exists && businessSnapshot.data() != null) {
+          .listen((businessQuerySnapshot) {
+            if (businessQuerySnapshot.docs.isNotEmpty) {
+              // Jika data usaha ditemukan
               setState(() {
-                _businessData = businessSnapshot.data();
+                _businessDocSnapshot = businessQuerySnapshot.docs.first; // Simpan snapshot dokumennya
+                // Isi controller dengan data yang ditemukan
+                _namaUsahaController.text = _businessDocSnapshot!['namaUsaha'] ?? '';
+                _jenisUsahaController.text = _businessDocSnapshot!['jenisUsaha'] ?? '';
+                _deskripsiUsahaController.text = _businessDocSnapshot!['deskripsiUsaha'] ?? '';
                 _isLoadingUserData = false;
               });
             } else {
+              // Jika tidak ada data usaha ditemukan untuk pengguna ini
               setState(() {
-                _businessData = null; // Tidak ada data usaha
+                _businessDocSnapshot = null; // Set null agar form input muncul
+                _namaUsahaController.clear();
+                _jenisUsahaController.clear();
+                _deskripsiUsahaController.clear();
                 _isLoadingUserData = false;
               });
             }
@@ -89,7 +94,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
       setState(() {
         _namaAkunHeaderController.text = 'Tidak Login';
         _nikHeaderController.text = 'Tidak Login';
-        _businessData = null;
+        _businessDocSnapshot = null;
         _isLoadingUserData = false;
       });
     }
@@ -117,21 +122,24 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
     }
 
     try {
-      await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('usaha')
-          .doc('myBusiness')
-          .set(
-            {
-              'namaUsaha': _namaUsahaController.text.trim(),
-              'jenisUsaha': _jenisUsahaController.text.trim(),
-              'deskripsiUsaha': _deskripsiUsahaController.text.trim(),
-              'lastUpdated':
-                  FieldValue.serverTimestamp(), // Tambahkan timestamp update
-            },
-            SetOptions(merge: true),
-          ); // Gunakan merge agar tidak menimpa field lain jika ada
+      final businessData = {
+        'namaUsaha': _namaUsahaController.text.trim(),
+        'jenisUsaha': _jenisUsahaController.text.trim(),
+        'deskripsiUsaha': _deskripsiUsahaController.text.trim(),
+        'lastUpdated': FieldValue.serverTimestamp(), // Tambahkan timestamp update
+        'userId': currentUser.uid, // Simpan userId ke dokumen usaha
+      };
+
+      if (_businessDocSnapshot != null) {
+        // Jika _businessDocSnapshot tidak null, berarti kita memperbarui data usaha yang sudah ada
+        await _businessDocSnapshot!.reference.set(
+          businessData,
+          SetOptions(merge: true), // Gunakan merge agar tidak menimpa field lain jika ada
+        );
+      } else {
+        // Jika _businessDocSnapshot null, berarti ini data usaha baru, tambahkan dokumen baru
+        await _firestore.collection('usaha').add(businessData);
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Data usaha berhasil disimpan!')),
@@ -155,9 +163,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    User? currentUser =
-        _auth
-            .currentUser; // Dapatkan user saat ini untuk dilewatkan ke widget lain
+    User? currentUser = _auth.currentUser;
 
     return Scaffold(
       backgroundColor: Colors.white, // Latar belakang putih
@@ -168,8 +174,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading:
-            false, // Menghilangkan tombol back default jika ada
+        automaticallyImplyLeading: false, // Menghilangkan tombol back default jika ada
       ),
       body: Column(
         children: [
@@ -182,67 +187,55 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 16.0),
           ),
           Expanded(
-            child:
-                _isLoadingUserData
-                    ? const Center(child: CircularProgressIndicator())
-                    : SingleChildScrollView(
-                      padding: const EdgeInsets.all(
-                        16.0,
-                      ), // Padding di sekeliling konten
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start, // Rata kiri untuk judul
-                        children: [
-                          const Text(
-                            'PROGRAM SAYA',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+            child: _isLoadingUserData
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0), // Padding di sekeliling konten
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, // Rata kiri untuk judul
+                      children: [
+                        const Text(
+                          'DATA USAHA SAYA', // Judul disesuaikan
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                          const SizedBox(height: 15),
-                          // Kondisional: tampilkan form input atau hasil inputan
-                          _businessData == null
-                              ? _buildProgramSayaInputForm() // Tampilkan form jika belum ada data
-                              : _buildProgramSayaDisplay(
-                                _businessData!,
-                              ), // Tampilkan data jika sudah ada
-                          const SizedBox(
-                            height: 25,
-                          ), // Spasi antara dua bagian utama
+                        ),
+                        const SizedBox(height: 15),
+                        // Kondisional: tampilkan form input atau hasil inputan
+                        _businessDocSnapshot == null
+                            ? _buildProgramSayaInputForm() // Tampilkan form jika belum ada data
+                            : _buildProgramSayaDisplay(_businessDocSnapshot!), // Tampilkan data jika sudah ada
+                        const SizedBox(height: 25), // Spasi antara dua bagian utama
 
-                          const Text(
-                            'PROGRAM YANG DISETUJUI :',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                        const Text(
+                          'PROGRAM YANG DISETUJUI :',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                          const SizedBox(height: 15),
-                          // Kotak untuk "PROGRAM YANG DISETUJUI" - Sekarang akan menampilkan data dari Firestore
-                          _buildProgramDisetujuiBox(
-                            currentUser,
-                          ), // Melewatkan currentUser
-                          const SizedBox(
-                            height: 25,
-                          ), // Spasi antara dua bagian utama
+                        ),
+                        const SizedBox(height: 15),
+                        // Kotak untuk "PROGRAM YANG DISETUJUI" - Sekarang akan menampilkan data dari Firestore
+                        _buildProgramDisetujuiBox(currentUser), // Melewatkan currentUser
+                        const SizedBox(height: 25), // Spasi antara dua bagian utama
 
-                          const Text(
-                            'PROGRAM YANG TERSEDIA :',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                        const Text(
+                          'PROGRAM YANG TERSEDIA :',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
-                          const SizedBox(height: 15),
-                          // Kotak untuk "PROGRAM YANG TERSEDIA"
-                          _buildProgramTersediaBox(),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 15),
+                        // Kotak untuk "PROGRAM YANG TERSEDIA"
+                        _buildProgramTersediaBox(),
+                      ],
                     ),
+                  ),
           ),
           // Garis pembatas horizontal tipis di atas bottom navigation
           Container(height: 1, color: Colors.black),
@@ -432,7 +425,9 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
   }
 
   // Widget untuk menampilkan hasil inputan usaha (read-only)
-  Widget _buildProgramSayaDisplay(Map<String, dynamic> businessData) {
+  // Menerima DocumentSnapshot sebagai parameter
+  Widget _buildProgramSayaDisplay(DocumentSnapshot businessDocSnapshot) {
+    final businessData = businessDocSnapshot.data() as Map<String, dynamic>; // Ambil data dari snapshot
     return Container(
       width: double.infinity, // Lebar penuh
       padding: const EdgeInsets.all(20.0), // Padding di dalam kotak
@@ -476,10 +471,8 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
                   // Mengisi controller dengan data yang ada agar bisa diedit
                   _namaUsahaController.text = businessData['namaUsaha'] ?? '';
                   _jenisUsahaController.text = businessData['jenisUsaha'] ?? '';
-                  _deskripsiUsahaController.text =
-                      businessData['deskripsiUsaha'] ?? '';
-                  _businessData =
-                      null; // Set null agar form input muncul kembali
+                  _deskripsiUsahaController.text = businessData['deskripsiUsaha'] ?? '';
+                  _businessDocSnapshot = null; // Set null agar form input muncul kembali
                 });
               },
               style: ElevatedButton.styleFrom(
@@ -554,7 +547,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
     );
   }
 
-  // Widget untuk "PROGRAM YANG DISETUJUI" dengan StreamBuilder
+  // Widget untuk "PROGRAM YANG DISETUJUI" dengan StreamBuilder dari koleksi top-level 'programBantuan'
   Widget _buildProgramDisetujuiBox(User? currentUser) {
     if (currentUser == null) {
       return Container(
@@ -587,21 +580,13 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
         borderRadius: BorderRadius.circular(10), // Sudut membulat
       ),
       child: StreamBuilder<QuerySnapshot>(
-        // Mendengarkan data dari sub-koleksi 'programAjuan'
-        stream:
-            _firestore
-                .collection('users')
-                .doc(currentUser.uid)
-                .collection('usaha')
-                .doc(
-                  'myBusiness',
-                ) // Asumsikan 'myBusiness' adalah ID dokumen data usaha
-                .collection('programAjuan')
-                .orderBy(
-                  'tanggalPengajuan',
-                  descending: true,
-                ) // Urutkan berdasarkan tanggal terbaru
-                .snapshots(),
+        // --- Perubahan Penting di Sini: Mendengarkan data dari koleksi top-level 'programBantuan' ---
+        stream: _firestore
+            .collection('programBantuan')
+            .where('userId', isEqualTo: currentUser.uid) // Filter hanya program milik pengguna ini
+            .where('status', isEqualTo: 'Disetujui') // Filter hanya program yang disetujui
+            .orderBy('tanggalPengajuan', descending: true) // Urutkan berdasarkan tanggal terbaru
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -612,7 +597,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
           } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
               child: Text(
-                'Anda belum mengajukan program apa pun.',
+                'Anda belum memiliki program yang disetujui.', // Teks disesuaikan
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: Colors.black54),
               ),
@@ -621,24 +606,17 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
             // Tampilkan daftar program
             final programDocs = snapshot.data!.docs;
             return ListView.builder(
-              shrinkWrap:
-                  true, // Agar ListView hanya mengambil ruang yang dibutuhkan
-              physics:
-                  const ClampingScrollPhysics(), // Memungkinkan scrolling di dalam kotak, tetapi terbatas
+              shrinkWrap: true, // Agar ListView hanya mengambil ruang yang dibutuhkan
+              physics: const ClampingScrollPhysics(), // Memungkinkan scrolling di dalam kotak, tetapi terbatas
               itemCount: programDocs.length,
               itemBuilder: (context, index) {
-                var programData =
-                    programDocs[index].data() as Map<String, dynamic>;
-                String namaProgram =
-                    programData['namaProgram'] ?? 'Nama Program Tidak Tersedia';
+                var programData = programDocs[index].data() as Map<String, dynamic>;
+                String namaProgram = programData['namaProgram'] ?? 'Nama Program Tidak Tersedia';
                 String status = programData['status'] ?? 'N/A';
                 Timestamp? tanggalPengajuan = programData['tanggalPengajuan'];
-                String tanggal =
-                    tanggalPengajuan != null
-                        ? tanggalPengajuan.toDate().toLocal().toString().split(
-                          ' ',
-                        )[0]
-                        : 'Tanggal Tidak Tersedia';
+                String tanggal = tanggalPengajuan != null
+                    ? '${tanggalPengajuan.toDate().day}/${tanggalPengajuan.toDate().month}/${tanggalPengajuan.toDate().year}'
+                    : 'Tanggal Tidak Tersedia';
 
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 5),
@@ -673,8 +651,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
   Widget _buildProgramTersediaBox() {
     return Container(
       width: double.infinity, // Lebar penuh
-      height:
-          150, // Tinggi fixed untuk kotak ini (disesuaikan agar mirip dengan 'Disetujui')
+      height: 150, // Tinggi fixed untuk kotak ini (disesuaikan agar mirip dengan 'Disetujui')
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
         color: Colors.grey[300], // Warna abu-abu yang lebih terang
@@ -702,7 +679,7 @@ class _BantuanSayaScreenState extends State<BantuanSayaScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: <Widget>[
             IconButton(
-              // Ikon Home (Beranda) - Aktif karena sedang di halaman ini
+              // Ikon Home (Beranda)
               icon: const Icon(
                 Icons.grid_view,
                 color: Color.fromARGB(255, 252, 252, 252),

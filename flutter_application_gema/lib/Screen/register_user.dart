@@ -13,6 +13,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController(); // Controller baru
+  final TextEditingController _nikController = TextEditingController();      // Controller baru
   final AuthService _authService = AuthService();
 
   String? _selectedRole; // Variabel untuk menyimpan pilihan role
@@ -23,16 +25,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _fullNameController.dispose(); // Dispose controller baru
+    _nikController.dispose();      // Dispose controller baru
     super.dispose();
   }
 
   void _registerUser() async {
+    // Validasi input
+    if (_emailController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty ||
+        _fullNameController.text.isEmpty || // Validasi field baru
+        _nikController.text.isEmpty) {       // Validasi field baru
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap lengkapi semua bidang.')),
+      );
+      return;
+    }
+
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password dan Konfirmasi Password tidak cocok!')),
       );
       return;
     }
+    
     if (_selectedRole == null) { // Validasi jika role belum dipilih
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pilih peran (role) Anda.')),
@@ -41,27 +58,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      // Panggil signUpWithEmailAndPassword dengan parameter role
+      // Panggil signUpWithEmailAndPassword dengan semua parameter
       User? user = await _authService.signUpWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text.trim(),
-        _selectedRole!, // Menggunakan selectedRole yang sudah divalidasi
+        _selectedRole!,
+        _fullNameController.text.trim(), // Teruskan fullName
+        _nikController.text.trim(),      // Teruskan nik
       );
 
       if (user != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Pendaftaran berhasil untuk ${user.email} dengan role $_selectedRole!')),
+          SnackBar(
+            content: Text('Pendaftaran berhasil untuk ${user.email} dengan role $_selectedRole!'),
+            backgroundColor: Colors.green,
+          ),
         );
         // Setelah pendaftaran berhasil, navigasi kembali ke halaman login
         Navigator.pop(context);
       }
-    } on FirebaseAuthException catch (e) {
+    } on Exception catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Terjadi kesalahan saat pendaftaran.')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -88,6 +109,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 30),
+            // Input field untuk Full Name
+            _buildInputField(
+              'Nama Lengkap',
+              Icons.person,
+              _fullNameController,
+            ),
+            const SizedBox(height: 15),
+            // Input field untuk NIK
+            _buildInputField(
+              'Nomor Induk Kependudukan (NIK)',
+              Icons.credit_card,
+              _nikController,
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 15),
             _buildInputField(
               'Email',
               Icons.email,
@@ -114,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.grey[200], // Warna background dropdown
+                color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.green.shade700),
               ),
@@ -127,7 +163,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   items: _roles.map((String role) {
                     return DropdownMenuItem<String>(
                       value: role,
-                      child: Text(role.toUpperCase()), // Tampilkan sebagai huruf besar
+                      child: Text(role.toUpperCase()),
                     );
                   }).toList(),
                   onChanged: (String? newValue) {
@@ -138,7 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 30), // Spasi setelah dropdown
+            const SizedBox(height: 30),
 
             ElevatedButton(
               onPressed: _registerUser,
@@ -158,7 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 20),
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Kembali ke halaman login
+                Navigator.pop(context);
               },
               child: Text(
                 'Sudah punya akun? Login di sini.',
@@ -176,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     IconData icon,
     TextEditingController controller, {
     bool isPassword = false,
-    TextInputType keyboardType = TextInputType.text,
+    TextInputType keyboardType = TextInputType.text, // Tambahkan parameter keyboardType
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -187,7 +223,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: TextField(
         controller: controller,
         obscureText: isPassword,
-        keyboardType: keyboardType,
+        keyboardType: keyboardType, // Gunakan keyboardType
         decoration: InputDecoration(
           hintText: hintText,
           prefixIcon: Icon(icon, color: Colors.green[700]),

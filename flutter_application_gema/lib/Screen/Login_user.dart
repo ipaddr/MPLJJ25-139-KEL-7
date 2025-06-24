@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 // Import AuthService
 import 'package:flutter_application_gema/service/auth_service.dart';
 // Sesuaikan path jika berbeda
-// >>>
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,6 +21,82 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // Fungsi untuk menangani proses login
+  void _loginUser() async {
+    // Validasi input
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap masukkan email dan password.')),
+      );
+      return;
+    }
+
+    try {
+      // Memanggil metode login dari AuthService
+      User? user = await _authService.signInWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+
+      if (user != null) {
+        // Jika login berhasil dan sudah diverifikasi oleh AuthService,
+        // lanjutkan untuk mendapatkan peran dan navigasi
+        String? userRole = await _authService.getUserRole(user.uid);
+
+        if (userRole == 'admin') {
+          // Jika peran adalah 'admin', navigasi ke halaman admin
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Login berhasil sebagai Admin: ${user.email}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pushReplacementNamed(
+            context,
+            '/admin_home', // Pastikan rute ini terdaftar di MaterialApp Anda
+          );
+        } else if (userRole == 'user') {
+          // Jika peran adalah 'user', navigasi ke halaman user
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Login berhasil: ${user.email}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pushReplacementNamed(
+            context,
+            '/user_home', // Pastikan rute ini terdaftar di MaterialApp Anda
+          );
+        } else {
+          // Jika role tidak ditemukan atau tidak valid di Firestore (setelah diverifikasi)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Peran pengguna tidak dikenal atau tidak diatur. Mohon hubungi administrator.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          await _authService.signOut(); // Logout pengguna karena peran tidak valid
+        }
+      }
+    } on Exception catch (e) {
+      // Menangkap Exception yang dilempar oleh AuthService (termasuk pesan 'belum diverifikasi')
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')), // Bersihkan 'Exception: '
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      // Menampilkan pesan error umum
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan tidak terduga: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -101,79 +176,7 @@ class _LoginPageState extends State<LoginPage> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () async {
-                            print('Login button pressed');
-                            try {
-                              // Memanggil metode login dari AuthService
-                              User? user = await _authService
-                                  .signInWithEmailAndPassword(
-                                    _emailController.text.trim(),
-                                    _passwordController.text.trim(),
-                                  );
-
-                              if (user != null) {
-                                // <<< LOGIKA NAVIGASI BERDASARKAN ROLE DIMULAI DI SINI
-                                String? userRole = await _authService
-                                    .getUserRole(user.uid);
-
-                                if (userRole == 'admin') {
-                                  // Jika peran adalah 'admin', navigasi ke halaman admin
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Login berhasil sebagai Admin: ${user.email}',
-                                      ),
-                                    ),
-                                  );
-                                  Navigator.pushReplacementNamed(
-                                    context,
-                                    '/admin_home',
-                                  );
-                                } else if (userRole == 'user') {
-                                  // Jika peran adalah 'user', navigasi ke halaman user
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Login berhasil: ${user.email}',
-                                      ),
-                                    ),
-                                  );
-                                  Navigator.pushReplacementNamed(
-                                    context,
-                                    '/user_home',
-                                  );
-                                } else {
-                                  // Jika role tidak ditemukan atau tidak valid di Firestore
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Peran pengguna tidak dikenal atau tidak diatur.',
-                                      ),
-                                    ),
-                                  );
-                                  // Opsional: Logout pengguna jika role tidak valid
-                                  await _authService.signOut();
-                                }
-                                // >>> LOGIKA NAVIGASI BERAKHIR DI SINI
-                              }
-                            } on FirebaseAuthException catch (e) {
-                              // Menampilkan pesan error dari Firebase Auth
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.message ?? 'Terjadi kesalahan login',
-                                  ),
-                                ),
-                              );
-                            } catch (e) {
-                              // Menampilkan pesan error umum
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error: ${e.toString()}'),
-                                ),
-                              );
-                            }
-                          },
+                          onPressed: _loginUser, // Panggil fungsi _loginUser
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green[700],
                             padding: const EdgeInsets.symmetric(vertical: 16),

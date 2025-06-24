@@ -26,17 +26,17 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Fungsi ini membangun objek Query Firestore berdasarkan filter yang dipilih.
-  // Sekarang menggunakan collectionGroup untuk mencari di semua sub-koleksi 'programAjuan'.
+  // Sekarang menargetkan koleksi top-level 'programBantuan'.
   Query _buildFirestoreQuery() {
-    // Menggunakan collectionGroup untuk mencari di semua sub-koleksi 'programAjuan'
-    Query query = _firestore.collectionGroup('programAjuan');
+    // --- PERUBAHAN PENTING DI SINI: Targetkan koleksi top-level 'programBantuan' ---
+    Query query = _firestore.collection('programBantuan');
 
-    // Filter berdasarkan status (menggantikan status_verifikasi dari kode lama)
+    // Filter berdasarkan status (sesuai field 'status' di dokumen programBantuan)
     if (_selectedStatusFilter != null && _selectedStatusFilter!.isNotEmpty) {
       query = query.where('status', isEqualTo: _selectedStatusFilter);
     }
 
-    // Urutkan data berdasarkan tanggalPengajuan terbaru (menggantikan tanggal_kunjungan)
+    // Urutkan data berdasarkan 'tanggalPengajuan' secara descending (terbaru lebih dulu)
     query = query.orderBy('tanggalPengajuan', descending: true);
 
     return query;
@@ -58,16 +58,16 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, // Rata kiri untuk elemen dalam kolom
             children: [
-              // Judul halaman "Verifikasi Laporan"
+              // Judul halaman "Verifikasi Laporan Bantuan"
               const Text(
-                'Verifikasi Laporan Bantuan', // Judul disesuaikan
+                'Verifikasi Laporan Bantuan', // Judul yang lebih ringkas
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 28, // Ukuran font lebih besar untuk judul utama
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepOrange,
+                  color: Colors.deepOrange, // Warna judul khusus untuk Verifikasi
                 ),
               ),
-              const SizedBox(height: 25), // Spasi setelah judul
+              const SizedBox(height: 25), // Spasi lebih besar setelah judul
 
               // Bagian Filter dan Pencarian, dibangun oleh widget terpisah
               _buildFilterSearchSection(context),
@@ -84,7 +84,7 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
             builder: (context, snapshot) {
               // Menampilkan indikator loading saat data sedang dimuat
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Colors.deepOrange));
+                return const Center(child: CircularProgressIndicator(color: Colors.deepOrange)); // Tampilkan loading
               }
               // Menampilkan pesan error jika terjadi kesalahan saat memuat data
               if (snapshot.hasError) {
@@ -116,16 +116,15 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                 );
               }
 
-              // Jika data berhasil dimuat
               final List<DocumentSnapshot> allDocuments = snapshot.data!.docs;
 
               // Filter data di sisi klien untuk pencarian teks (_searchQuery).
-              // Sekarang mencari di namaProgram dan deskripsiProgram.
+              // Mencari di namaProgram, deskripsiProgram, atau kategoriUsaha dari dokumen programBantuan.
               final filteredDocuments = allDocuments.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final namaProgram = (data['namaProgram'] as String? ?? '').toLowerCase();
-                final deskripsiProgram = (data['deskripsiProgram'] as String? ?? '').toLowerCase(); // Tambah pencarian deskripsi
-                final kategoriUsaha = (data['kategoriUsaha'] as String? ?? '').toLowerCase(); // Tambah pencarian kategori
+                final deskripsiProgram = (data['deskripsiProgram'] as String? ?? '').toLowerCase();
+                final kategoriUsaha = (data['kategoriUsaha'] as String? ?? '').toLowerCase();
                 final query = _searchQuery.toLowerCase();
 
                 return namaProgram.contains(query) || deskripsiProgram.contains(query) || kategoriUsaha.contains(query);
@@ -139,8 +138,8 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
                 endIndex.clamp(0, filteredDocuments.length),
               );
 
-              // Membangun tabel monitoring dengan data yang sudah difilter dan dipaginasi
-              return _buildMonitoringTableSection(context, paginatedDocuments);
+              // --- PERUBAHAN UTAMA DI SINI: Memanggil _buildMonitoringBoxChartSection ---
+              return _buildMonitoringBoxChartSection(context, paginatedDocuments);
             },
           ),
         ),
@@ -208,22 +207,16 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               },
             ),
             const SizedBox(height: 15),
-            // Filter Lokasi dihilangkan karena tidak ada di dokumen programAjuan
-            // Hanya filter Status Verifikasi yang dipertahankan
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // Di sini hanya ada satu dropdown, jadi layoutnya lebih sederhana
-                return _buildDropdownFilter(
-                  labelText: 'Status Pengajuan', // Label disesuaikan
-                  value: _selectedStatusFilter,
-                  items: const ['Disetujui', 'Ditolak', 'Diajukan'], // Menggunakan 'Diajukan' sebagai status awal
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedStatusFilter = value;
-                      _currentPage = 1;
-                    });
-                  },
-                );
+            // Filter Status Pengajuan
+            _buildDropdownFilter(
+              labelText: 'Status Pengajuan',
+              value: _selectedStatusFilter,
+              items: const ['Disetujui', 'Ditolak', 'Diajukan'], // Sesuaikan dengan nilai di Firestore
+              onChanged: (value) {
+                setState(() {
+                  _selectedStatusFilter = value;
+                  _currentPage = 1;
+                });
               },
             ),
             const SizedBox(height: 20),
@@ -310,152 +303,176 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
     );
   }
 
-  Widget _buildMonitoringTableSection(BuildContext context, List<DocumentSnapshot> data) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 20.0),
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
-      child: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(10, 10, 10, 0),
-              child: Text(
-                'Daftar Pengajuan Program', // Judul disesuaikan
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
-            ),
-            const SizedBox(height: 15),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 60),
-                child: DataTable(
-                  headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.deepOrange.shade100),
-                  dataRowHeight: 60,
-                  columnSpacing: 25,
-                  columns: const [
-                    DataColumn(label: Text('No.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                    DataColumn(label: Text('Nama Program', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Disganti
-                    DataColumn(label: Text('User ID Pengaju', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
-                    DataColumn(label: Text('Tanggal Pengajuan', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
-                    DataColumn(label: Text('Kategori Usaha', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
-                    DataColumn(label: Text('Status Pengajuan', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), // Diganti
-                    DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-                  ],
-                  rows: List<DataRow>.generate(
-                    data.length,
-                    (index) {
-                      final doc = data[index];
-                      final item = doc.data() as Map<String, dynamic>;
-                      
-                      // Ambil data dari Map, berikan nilai default 'N/A' jika null
-                      final String namaProgram = item['namaProgram'] ?? 'N/A';
-                      final String userIdPengaju = item['userId'] ?? 'N/A'; // Disesuaikan
-                      final Timestamp? timestamp = item['tanggalPengajuan'] as Timestamp?; // Disesuaikan
-                      final String tanggalPengajuan = timestamp != null
-                          ? '${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year}'
-                          : 'N/A';
-                      final String kategoriUsaha = item['kategoriUsaha'] ?? 'N/A'; // Disesuaikan
-                      final String statusPengajuan = item['status'] ?? 'N/A'; // Disesuaikan (menggunakan field 'status')
+  // --- Widget Bagian Tampilan "Box Chart" ---
+  // Menggantikan _buildMonitoringTableSection
+  Widget _buildMonitoringBoxChartSection(BuildContext context, List<DocumentSnapshot> data) {
+    return Expanded( // Memastikan ListView mengisi sisa ruang yang tersedia
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0), // Padding di sekitar list
+        itemCount: data.length,
+        itemBuilder: (context, index) {
+          final doc = data[index];
+          final item = doc.data() as Map<String, dynamic>;
 
-                      Color statusColor = Colors.grey;
-                      Color statusBgColor = Colors.grey.withOpacity(0.1);
-                      if (statusPengajuan == 'Disetujui') {
-                        statusColor = Colors.green.shade800!;
-                        statusBgColor = Colors.green.withOpacity(0.1);
-                      } else if (statusPengajuan == 'Ditolak') {
-                        statusColor = Colors.red.shade800!;
-                        statusBgColor = Colors.red.withOpacity(0.1);
-                      } else if (statusPengajuan == 'Diajukan') { // Status awal
-                        statusColor = Colors.amber.shade800!;
-                        statusBgColor = Colors.amber.withOpacity(0.1);
-                      }
+          final String namaProgram = item['namaProgram'] ?? 'N/A';
+          final String userIdPengaju = item['userId'] ?? 'N/A';
+          final Timestamp? timestamp = item['tanggalPengajuan'] as Timestamp?;
+          final String tanggalPengajuan = timestamp != null
+              ? '${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year}'
+              : 'N/A';
+          final String kategoriUsaha = item['kategoriUsaha'] ?? 'N/A';
+          final String statusPengajuan = item['status'] ?? 'N/A';
+          final String deskripsiProgram = item['deskripsiProgram'] ?? 'Tidak ada deskripsi.'; // Ambil deskripsi
 
-                      return DataRow(
-                        cells: [
-                          DataCell(Text('${(index + 1) + (_currentPage - 1) * _itemsPerPage}')),
-                          DataCell(Text(namaProgram)),
-                          DataCell(Text(userIdPengaju)),
-                          DataCell(Text(tanggalPengajuan)),
-                          DataCell(Text(kategoriUsaha)),
-                          DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: statusBgColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                statusPengajuan,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
+          Color statusColor = Colors.grey;
+          Color statusBgColor = Colors.grey.withOpacity(0.1);
+          if (statusPengajuan == 'Disetujui') {
+            statusColor = Colors.green.shade800!;
+            statusBgColor = Colors.green.withOpacity(0.1);
+          } else if (statusPengajuan == 'Ditolak') {
+            statusColor = Colors.red.shade800!;
+            statusBgColor = Colors.red.withOpacity(0.1);
+          } else if (statusPengajuan == 'Diajukan') {
+            statusColor = Colors.amber.shade800!;
+            statusBgColor = Colors.amber.withOpacity(0.1);
+          }
+
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0.0), // Margin antar kartu
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          namaProgram,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.info, color: Colors.blue),
-                                  tooltip: 'Lihat Detail',
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Melihat detail program ${namaProgram}')),
-                                    );
-                                    // TODO: Navigasi ke halaman detail laporan.
-                                    // Anda bisa meneruskan doc.reference.path atau data lain yang diperlukan.
-                                  },
-                                ),
-                                // Tombol "Setujui" hanya tampil jika status 'Diajukan'
-                                if (statusPengajuan == 'Diajukan')
-                                  IconButton(
-                                    icon: const Icon(Icons.check_circle, color: Colors.green),
-                                    tooltip: 'Setujui',
-                                    onPressed: () {
-                                      _showApprovalDialog(context, doc.reference, namaProgram, 'Disetujui'); // Gunakan doc.reference
-                                    },
-                                  ),
-                                // Tombol "Tolak" hanya tampil jika status 'Diajukan'
-                                if (statusPengajuan == 'Diajukan')
-                                  IconButton(
-                                    icon: const Icon(Icons.cancel, color: Colors.red),
-                                    tooltip: 'Tolak',
-                                    onPressed: () {
-                                      _showApprovalDialog(context, doc.reference, namaProgram, 'Ditolak'); // Gunakan doc.reference
-                                    },
-                                  ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  tooltip: 'Hapus Pengajuan',
-                                  onPressed: () {
-                                    _confirmDelete(context, doc.reference, namaProgram); // Gunakan doc.reference
-                                  },
-                                ),
-                              ],
-                            ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          statusPengajuan,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
-                        ],
-                      );
-                    },
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pengaju: $userIdPengaju',
+                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                  ),
+                  Text(
+                    'Tanggal: $tanggalPengajuan',
+                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                  ),
+                  Text(
+                    'Kategori: $kategoriUsaha',
+                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Deskripsi: ${deskripsiProgram.length > 100 ? deskripsiProgram.substring(0, 100) + '...' : deskripsiProgram}', // Potong deskripsi jika terlalu panjang
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 12),
+                  // Baris Tombol Aksi
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end, // Rata kanan tombol aksi
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Melihat detail program ${namaProgram}')),
+                          );
+                          // TODO: Navigasi ke halaman detail laporan, bisa kirim doc.id atau seluruh item data
+                          // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => DetailProgramScreen(programData: item)));
+                        },
+                        icon: const Icon(Icons.info_outline, size: 20, color: Colors.blue),
+                        label: const Text('Detail', style: TextStyle(color: Colors.blue)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.withOpacity(0.1),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (statusPengajuan == 'Diajukan') // Tampilkan tombol ini hanya jika status 'Diajukan'
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showApprovalDialog(context, doc.reference, namaProgram, 'Disetujui');
+                          },
+                          icon: const Icon(Icons.check_circle_outline, size: 20, color: Colors.green),
+                          label: const Text('Setujui', style: TextStyle(color: Colors.green)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.withOpacity(0.1),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      if (statusPengajuan == 'Diajukan') // Tampilkan tombol ini hanya jika status 'Diajukan'
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showApprovalDialog(context, doc.reference, namaProgram, 'Ditolak');
+                          },
+                          icon: const Icon(Icons.cancel_outlined, size: 20, color: Colors.red),
+                          label: const Text('Tolak', style: TextStyle(color: Colors.red)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.withOpacity(0.1),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _confirmDelete(context, doc.reference, namaProgram);
+                        },
+                        icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                        label: const Text('Hapus', style: TextStyle(color: Colors.grey)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.withOpacity(0.1),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
   // Dialog konfirmasi setuju/tolak
-  // docRef sekarang menerima DocumentReference langsung
   Future<void> _showApprovalDialog(BuildContext context, DocumentReference docRef, String namaProgram, String newStatus) async {
     return showDialog<void>(
       context: context,
@@ -480,10 +497,9 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 try {
-                  // Menggunakan docRef langsung untuk update
                   await docRef.update({
-                    'status': newStatus, // Field 'status' di dokumen programAjuan
-                    'last_updated_admin': FieldValue.serverTimestamp(), // Tambahkan timestamp update oleh admin
+                    'status': newStatus,
+                    'last_updated_admin': FieldValue.serverTimestamp(),
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -508,7 +524,6 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
   }
 
   // Dialog konfirmasi hapus
-  // docRef sekarang menerima DocumentReference langsung
   Future<void> _confirmDelete(BuildContext context, DocumentReference docRef, String namaProgram) async {
     return showDialog<void>(
       context: context,
@@ -531,7 +546,6 @@ class _VerifikasiMonitoringLaporanAdminScreenState extends State<VerifikasiMonit
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 try {
-                  // Menggunakan docRef langsung untuk delete
                   await docRef.delete();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
