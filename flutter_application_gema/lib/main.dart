@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // Import Firebase Core
-import 'package:flutter_application_gema/Screen/beranda_admin.dart';
 
-// <<< PASTIKAN IMPORT FILE-FILE INI SUDAH BENAR DAN ADA
 // Mengimpor semua halaman yang digunakan dalam rute aplikasi
 import 'package:flutter_application_gema/Screen/login_user.dart';
 import 'package:flutter_application_gema/Screen/beranda.dart'; // Halaman Beranda/User Home
@@ -11,19 +9,20 @@ import 'package:flutter_application_gema/Screen/ajukan_bantuan.dart';
 import 'package:flutter_application_gema/Screen/about_aplikasi.dart';
 import 'package:flutter_application_gema/Screen/register_user.dart';
 import 'package:flutter_application_gema/Screen/berita_screen.dart';
-// >>>
+import 'package:flutter_application_gema/Screen/beranda_admin.dart'; // <<< PENTING: Ini adalah BerandaAdminScreen
+import 'package:flutter_application_gema/Screen/verifikasi_pengguna.dart'; // Untuk AdminUserVerificationScreen
+import 'package:flutter_application_gema/Screen/verifikasi_monitoring_laporan_admin.dart'; // Untuk VerifikasiMonitoringLaporanAdminScreen
+import 'package:flutter_application_gema/Screen/tambah_berita.dart'; // Untuk AddNewsScreen (pastikan ini nama filenya)
+
 
 // Import file firebase_options.dart Anda. Ini dihasilkan oleh Firebase CLI.
 // Pastikan Anda telah menjalankan `flutterfire configure` sebelumnya.
-// Jika file ini tidak ada, Anda perlu menyiapkan Firebase di proyek Flutter Anda.
 import 'firebase_options.dart';
 
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Pastikan binding Flutter sudah diinisialisasi
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    // <<< PENTING: UNCOMMENT DAN PASTIKAN OPSI INI DIGUNAKAN JIKA ANDA TELAH MENYIAPKAN FIREBASE
-    // Jika Anda belum menyiapkan Firebase, Anda akan mendapatkan error di sini.
     options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(const MyApp());
@@ -36,47 +35,48 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'GEMA App',
-      debugShowCheckedModeBanner: false, // Menghilangkan banner debug
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.grey, // Warna dasar aplikasi
+        primarySwatch: Colors.grey,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'Roboto', // Font default
+        fontFamily: 'Roboto',
       ),
       routes: {
         '/': (context) => const LoginPage(), // Halaman awal aplikasi adalah Login
         
-        // Rute untuk halaman admin utama (dengan navbar)
-        '/admin_home': (context) => const BerandaAdminScreen(), // Kini BerandaAdminScreen sudah terimpor
+        // --- PERBAIKAN DI SINI ---
+        // Rute untuk halaman admin utama (dengan bottom nav)
+        // Sekarang langsung mengarah ke BerandaAdminScreen
+        '/admin_home': (context) => const BerandaAdminScreen(), 
         
         // Rute untuk halaman user biasa
-        '/user_home': (context) => const Beranda(), // Ini sudah benar mengarah ke Beranda
+        '/user_home': (context) => const Beranda(),
         '/programSaya': (context) => const BantuanSayaScreen(),
         '/ajukanBantuan': (context) => const AjukanBantuanScreen(),
         '/aboutAplikasi': (context) => const AboutAplikasiScreen(),
         '/register': (context) => const RegisterScreen(),
         
-        // Catatan: '/beranda' tidak perlu lagi sebagai rute terpisah jika '/user_home' sudah mengarah ke Beranda
-        // dan ini adalah titik masuk utama untuk user biasa setelah login.
+        // Rute untuk halaman admin spesifik yang diakses dari tombol di dashboard atau tempat lain
+        // Pastikan Anda memiliki AdminUserVerificationScreen di file verifikasi_pengguna.dart
+        '/admin_user_verification': (context) => const AdminUserVerificationScreen(),
+        '/verifikasi_monitoring_laporan_admin': (context) => const VerifikasiMonitoringLaporanAdminScreen(),
+        '/add_news_screen': (context) => const AddNewsScreen(), 
       },
       
-      // onGenerateRoute digunakan untuk rute dengan argumen, seperti detail berita
       onGenerateRoute: (settings) {
         if (settings.name == '/beritaDetail') {
-          // Memastikan argumen adalah String (ID berita)
           final args = settings.arguments as String;
           return MaterialPageRoute(
             builder: (context) {
-              return BeritaScreen(beritaId: args); // Meneruskan ID berita ke BeritaScreen
+              return BeritaScreen(beritaId: args);
             },
           );
         }
-        // Jika rute tidak ditemukan di daftar 'routes' atau 'onGenerateRoute',
-        // tampilkan halaman error.
         return MaterialPageRoute(
           builder: (context) => const Center(child: Text('Error: Halaman tidak ditemukan')),
         );
       },
-      initialRoute: '/', // Menetapkan rute awal aplikasi
+      initialRoute: '/',
     );
   }
 }
